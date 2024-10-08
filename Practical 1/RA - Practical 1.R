@@ -245,5 +245,107 @@ the data. However the residuals do not follow a normal distribution, and the var
 suggests that the ARIMA model may not be the best fit for the data. Maybe using a GARCH model could be more appropriate"
 
 ### d
+install.packages('fGarch')
+library(fGarch)
 
+### Fitting a GARCH(1,1) model with a normal distribution
+garch_normal_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "norm", trace = FALSE)
+
+# Print the summary of the model
+summary(garch_normal_fit)
+
+# Extract residuals from the fitted GARCH model with normal distribution
+garch_normal_residuals <- residuals(garch_normal_fit)
+
+# Plot ACF of residuals to check for autocorrelation
+acf(garch_normal_residuals, main = "ACF of Residuals (GARCH Normal)")
+
+### It captures most of the autocorrelation, but the spike in lag 1 can suggests that there is some remaining of corr, 
+### the model does not capture full of the dependencies.
+
+# Perform Ljung-Box test on residuals
+Box.test(garch_normal_residuals, lag = 20, type = "Ljung-Box")
+### We reject the hypothesis of no autocorrelation. There is so a bit of autocorr (we see it by the ACF plot with spike in lag 1)
+
+# QQ-Plot to check for normality of residuals
+qqnorm(garch_normal_residuals, main = "QQ-Plot of Residuals (GARCH Normal)")
+qqline(garch_normal_residuals, col = "red")
+### There are deviations in the tails, there are so extreme values. In principle, t-distr will correct it!
+
+shapiro.test(garch_normal_residuals)
+### It rejects the hypothesis of the normality for the residuals. So the residuals are not normally distributed.
+
+### Fitting a GARCH(1,1) model with a standardized t-distribution ###
+garch_t_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "std", trace = FALSE)
+
+# Print the summary of the model
+summary(garch_t_fit)
+
+# Extract residuals from the fitted GARCH model with t-distribution
+garch_t_residuals <- residuals(garch_t_fit)
+
+# Plot ACF of residuals to check for autocorrelation
+acf(garch_t_residuals, main = "ACF of Residuals (GARCH t-Distribution)")
+
+# Perform Ljung-Box test on residuals
+Box.test(garch_t_residuals, lag = 20, type = "Ljung-Box")
+
+# QQ-Plot to check for normality of residuals
+qqnorm(garch_t_residuals, main = "QQ-Plot of Residuals (GARCH t-Distribution)")
+qqline(garch_t_residuals, col = "red")
+
+# Shapiro-Wilk test for normality of residuals
+shapiro.test(garch_t_residuals)
+
+### The conclusions are the same for all the indicators, because the results are very close.
+
+# Compare the models based on AIC, BIC, or log-likelihood (lower AIC/BIC or higher log-likelihood is better)
+cat("AIC (Normal):", garch_normal_fit@fit$ics[1], "\n")
+cat("AIC (t-Distribution):", garch_t_fit@fit$ics[1], "\n")
+
+cat("BIC (Normal):", garch_normal_fit@fit$ics[2], "\n")
+cat("BIC (t-Distribution):", garch_t_fit@fit$ics[2], "\n")
+
+### The values are really close, but the normal model appears to be better than the t-distr (AIC: -10.60 vs -10.75)
+
+### e
+
+# Assuming `neg_log_returns` is the negative log returns data
+
+# Fit an ARIMA(2,0,2) model on the negative log returns
+arima_fit <- arima(bitcoin_negative_log_returns, order = c(2, 0, 2))
+
+# Extract the residuals from the ARIMA model
+arima_residuals <- residuals(arima_fit)
+
+# Fit a GARCH(1,1) model on the ARIMA residuals
+garch_fit_arima_resid <- garchFit(~ garch(1, 1), data = arima_residuals, trace = FALSE)
+
+# Summary of the GARCH fit
+summary(garch_fit_arima_resid)
+
+# Assess the quality of the GARCH(1,1) fit
+
+# Plot ACF of residuals from GARCH fit
+garch_residuals <- residuals(garch_fit_arima_resid)
+acf(garch_residuals, main = "ACF of Residuals (GARCH on ARIMA Residuals)")
+### There is fast no values out of the bounds, which shows the GARCH has captured fast all the volatility in the residuals.
+
+# QQ-plot of residuals
+qqnorm(garch_residuals)
+qqline(garch_residuals, col = "red", main = "QQ-Plot of Residuals (GARCH on ARIMA Residuals)")
+### There are deviations in the extreme, which is a sign of heavy tails.
+
+# Box-Ljung test on GARCH residuals
+box_ljung_test <- Box.test(garch_residuals, lag = 20, type = "Ljung-Box")
+print(box_ljung_test)
+### High p-val, which indicates there is no significant autocorr in the residuals.
+
+
+# Shapiro-Wilk test for normality of residuals
+shapiro_test <- shapiro.test(garch_residuals)
+print(shapiro_test)
+### The p-val is lower than 0.05, so we reject the null hypothesis of normality. So the residuals are not normally distributed.
+
+### f
 
