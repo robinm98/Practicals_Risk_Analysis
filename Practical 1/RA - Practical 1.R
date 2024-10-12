@@ -10,7 +10,7 @@ library(fpp2)
 
 
 # Load data using a relative path
-Crypto_data <- read_csv("Data/Crypto_data.csv")
+Crypto_data <- read_csv("Practical 1/Data/Crypto_data.csv")
 
 # View the data
 View(Crypto_data)
@@ -348,4 +348,40 @@ print(shapiro_test)
 ### The p-val is lower than 0.05, so we reject the null hypothesis of normality. So the residuals are not normally distributed.
 
 ### f
+
+
+"1. ARIMA(2, 0, 2) Model:
+
+    Autocorrelation: The ACF of the residuals showed no significant autocorrelation, which is a good sign that the ARIMA model has captured most of the structure in the data.
+    Normality: The QQ-plot and Shapiro-Wilk test indicated that the residuals do not follow a normal distribution. This suggests that the ARIMA model is not capturing the full distributional characteristics of the data, especially the heavy tails or extreme values common in financial data.
+    Variance: The residual plot showed signs of volatility clustering, indicating that the variance is not constant (heteroscedasticity), which violates the ARIMA model's assumption of homoscedasticity.
+    Conclusion: Although the ARIMA model captured the serial correlation (autocorrelation), it does not handle the non-constant variance well, suggesting that this model is not fully suitable for this data.
+
+2. GARCH(1, 1) with Normal Distribution:
+
+    Autocorrelation: The ACF of the residuals showed that the GARCH(1, 1) model captured most of the autocorrelation, but there was a small spike at lag 1, indicating some remaining serial dependence that was not fully captured.
+    Normality: The QQ-plot and Shapiro-Wilk test indicated that the residuals are not normally distributed. The deviations in the tails suggest that the normal distribution is not capturing the heavy tails of the negative log returns, which is common in financial data.
+    Variance: The GARCH model allows for heteroscedasticity, meaning that it models the changing variance over time, capturing the volatility clustering in the data.
+    Conclusion: The GARCH(1, 1) model with a normal distribution improves over ARIMA in terms of handling volatility, but it still does not adequately account for the heavy tails in the data.
+
+3. GARCH(1, 1) with t-Distribution:
+
+    Autocorrelation: The ACF of the residuals showed that the GARCH(1, 1) model with a t-distribution performed similarly to the GARCH with normal distribution. The Ljung-Box test indicated that some autocorrelation might still be present, but overall, it captures the structure well.
+    Normality: The QQ-plot and Shapiro-Wilk test for the t-distribution residuals suggested that while the fit was not perfect, the t-distribution better captures the heavy tails than the normal distribution does.
+    Variance: Like the GARCH model with normal distribution, this model captures volatility clustering and accommodates heteroscedasticity well.
+    Conclusion: The GARCH(1, 1) model with a t-distribution provides a better fit for the data because it captures the heavy tails more effectively than the normal distribution. This model is generally more suitable for financial data, which often exhibits extreme returns."
+
+
+"Conclusion on Model Comparison:
+
+    Most Suitable Model: The GARCH(1, 1) model with t-distribution is likely the most suitable for the negative log returns of Bitcoin. It handles both the changing variance (heteroscedasticity) and the heavy tails present in financial returns, making it a more appropriate model for this type of data.
+
+    Homoscedasticity Assumption:
+        The ARIMA model clearly violates the homoscedasticity assumption, as it does not model the volatility clustering seen in the data.
+        Both GARCH models (with normal and t-distributions) allow for heteroscedasticity and are specifically designed to model the changing variance over time. Hence, in these models, the homoscedasticity assumption is not violated because the models account for the non-constant variance."
+
+
+### --> TO BE CHECK AND ASSESS MORE CAREFULLY !!!
+
+################## PART 3 ##################
 
