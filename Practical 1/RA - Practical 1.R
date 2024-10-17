@@ -385,3 +385,71 @@ print(shapiro_test)
 
 ################## PART 3 ##################
 
+# 1st: Negative log-return of ETH
+# We take the concerned column.
+eth_prices <- Crypto_data$Ethereum
+
+# Function to compute negative log returns:
+negative_log_returns <- function(prices) {
+  log_returns <- diff(log(prices))  # Calculate log returns
+  return(-log_returns)  # Return the negative log returns
+}
+
+# Apply the function to the ETH prices
+eth_negative_log_returns <- negative_log_returns(eth_prices)
+
+# Plot the negative log returns of ETH
+plot(eth_negative_log_returns, type = "l", main = "Negative Log Returns of ETH", xlab = "Time", ylab = "Negative Log Returns")
+
+# Perform the ADF test on the negative log returns of ETH
+adf_test_eth <- adf.test(eth_negative_log_returns)
+print(adf_test_eth)
+
+### a
+# Ensure the length of both series is the same by trimming if necessary
+min_length <- min(length(bitcoin_negative_log_returns), length(eth_negative_log_returns))
+bitcoin_negative_log_returns <- bitcoin_negative_log_returns[1:min_length]
+eth_negative_log_returns <- eth_negative_log_returns[1:min_length]
+
+# Perform the correlation test between Bitcoin and ETH negative log returns
+correlation_test <- cor.test(bitcoin_negative_log_returns, eth_negative_log_returns)
+
+# Print the result of the correlation test
+print(correlation_test)
+# The p-value is greater than 0.05(= 0.905), you cannot reject the null hypothesis, meaning the series might be independent.
+# So the Bitcoin & Ethereum are apparently not correlated, so these 2 series are independent.
+
+### b
+# Calculate the Cross-Correlation Function (CCF)
+ccf_result <- ccf(bitcoin_negative_log_returns, eth_negative_log_returns, plot=TRUE)
+
+# Print the CCF result (if needed)
+print(ccf_result)
+# No corr at lag 0, so the 2 series are independent in the beginning.
+# There is a notable spike at lag -5, so change in ETH log return precedes change in BTC from around 5 periods. 
+# Largely above the IC, so statistically significant.
+# This pattern indicates some degree of dependency between the 2 series, ETH potentially driving BTC at certain points.
+
+### c
+library(lmtest)
+# Granger causality test for Bitcoin predicting ETH
+grangertest(eth_negative_log_returns ~ bitcoin_negative_log_returns, order = 10)
+# The first test gives a p-val very small (0.001<<), so we reject the null hypothesis.
+# There is predictive power in Bitcoin's returns for forecasting Ethereum's returns.
+
+# Granger causality test for ETH predicting Bitcoin
+grangertest(bitcoin_negative_log_returns ~ eth_negative_log_returns, order = 10)
+# The p-val is large (0.81), so we cannot reject the null hypothesis.
+# So Ethereum's past returns do not have predictive power for Bitcoin's future returns.
+
+### d
+### 1:
+# We can reasonably expect that Ethereum will also experience a negative impact shortly after. 
+# This is because the causality test suggests that Bitcoin's price movements tend to influence Ethereum's price movements.
+# one should expect Ethereum prices to also experience a downturn in the near future based on the observed predictive relationship between their returns.
+
+### 2: 
+# We cannot conclude that Bitcoin will be similarly affected.
+# The lack of Granger causality from Ethereum to Bitcoin suggests that Ethereum's price movements do not have a significant predictive power over Bitcoin's movements. 
+# Therefore, Bitcoin might not experience a similar drop just because Ethereum does.
+# Bitcoin may remain unaffected, or its movement could depend on other market forces, not directly on Ethereum's price action.
