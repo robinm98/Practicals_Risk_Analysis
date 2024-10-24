@@ -97,7 +97,6 @@ qqline(bitcoin_negative_log_returns, distribution = function(p) qt(p, df = df_va
 # For comparison, create a QQ-plot for the normal distribution fit
 qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Normal Distribution")
 qqline(bitcoin_negative_log_returns, col = "red")
-
 # --> fit seem better with t-distribution than normal distribution
 
 ################## Compare data distribution with normal and t-distribution #############################

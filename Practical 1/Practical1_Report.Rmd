@@ -18,6 +18,8 @@ library(MASS)
 library(fpp2)
 library(fGarch)
 library(lmtest)
+library(ggplot2)
+library(tidyr)
 
 # Load data using a relative path
 Crypto_data <- read_csv("Data/Crypto_data.csv")
@@ -25,28 +27,99 @@ Crypto_data <- read_csv("Data/Crypto_data.csv")
 
 # Part 1: Financial Returns and Normality
 
-### a) Assessing Stationarity of Bitcoin Prices
+### a) and b) Assessing Stationarity of Bitcoin Prices and Negative Log Returns
 
-In this section, we analyze the raw Bitcoin prices to assess stationarity, as this determines whether transformations or differencing are required before applying time series models.
+In this section, we assess the stationarity of the raw Bitcoin prices and their negative log returns, as stationarity is crucial for time series modeling.
 
-We first plotted the Bitcoin prices (see Figure 1) to visually inspect for any apparent trends or patterns. From the plot, we can already observe a clear trend and some repeating patterns, which suggest that the series may be non-stationary. However, to formally confirm this, we applied the Augmented Dickey-Fuller (ADF) test (see Table 1), which is a statistical test used to determine whether the series has a unit root—a key indicator of non-stationarity.
+We first plotted the Bitcoin prices (see Figure 1) to visually inspect for trends or patterns. The plot showed a clear trend, suggesting non-stationarity. To confirm this, we applied the Augmented Dickey-Fuller (ADF) test (see Table 1), which resulted in a p-value of 0.3885, indicating that the raw Bitcoin prices are non-stationary.
 
-The result of the ADF test gave a p-value of 0.3885, which is greater than the common significance level of 0.05. As a result, we fail to reject the null hypothesis (H0) that the series is non-stationary. This confirms that the raw Bitcoin prices are indeed non-stationary, reinforcing our initial visual observation of trends and structural patterns over time.
+To address this, we computed the negative log returns, a transformation commonly used in financial time series analysis to obtain a stationary series. Visual inspection of the negative log returns (see Figure 2) suggested stationarity. This was further confirmed by the ADF test (see Table 2), which gave a p-value of 0.01, leading us to reject the null hypothesis of non-stationarity and confirming that the negative log returns are stationary.
 
-### b) Computing Negative Log Returns and Assessing Stationarity
+```{r, fig.align='center', fig.width=7, fig.height=2}
+# Extract Bitcoin prices 
+bitcoin_prices <- Crypto_data[[1]] # or Crypto_data$Bitcoin
 
-Since the raw Bitcoin prices were found to be non-stationary, as identified in part a, we proceed by computing the negative log returns. Negative log returns are commonly used in financial time series analysis because they often result in a stationary series, making them more suitable for modeling and forecasting. 
+# Create a function to compute negative log returns
+negative_log_returns <- function(prices) {
+  # Calculate log returns
+  log_returns <- diff(log(prices))
+  # Return the negative of the log returns
+  return(-log_returns)
+}
 
-Upon visual inspection, the plot of the negative log returns also appears to be stationary (see Figure 2). To formally assess this, we applied the Augmented Dickey-Fuller (ADF) test (see Table 2), which resulted in a p-value of 0.01. Since this is less than 0.05, we reject the null hypothesis (H0) that the series is non-stationary, confirming that the negative log returns are indeed stationary.
+# Apply the function to the Bitcoin prices
+bitcoin_negative_log_returns <- negative_log_returns(bitcoin_prices)
+
+# Create a data frame for both Bitcoin prices and negative log returns
+bitcoin_data <- data.frame(
+  Time = 1:length(bitcoin_prices),
+  Bitcoin_Prices = bitcoin_prices,
+  Negative_Log_Returns = c(NA, bitcoin_negative_log_returns) # Aligning lengths by adding NA
+)
+
+# Reshape data for facet wrapping
+bitcoin_data_long <- pivot_longer(bitcoin_data, cols = c(Bitcoin_Prices, Negative_Log_Returns), 
+                                  names_to = "Series", values_to = "Values")
+
+# Create the facet plot
+ggplot(bitcoin_data_long, aes(x = Time, y = Values)) +
+  geom_line() +
+  facet_wrap(~ Series, scales = "free_y") +
+  labs(title = "Figure 1 and 2 : Bitcoin Prices and Negative Log Returns Over Time", 
+       x = "Time", y = "Value") +
+  theme_minimal()
+```
 
 ### c) Assessing the Normality of Negative Log Returns
 
-To evaluate whether the negative log returns of Bitcoin follow a normal distribution, we first examined the data visually using a histogram (see Figure 3) and a QQ-plot (see Figure 4).
-
-The histogram of the negative log returns suggests that the data may be approximately normally distributed, though some deviations from normality could exist. Additionally, the QQ-plot shows that the returns are normally distributed for non-extreme values, but there are noticeable deviations in the tails, indicating that the negative log returns may not follow a perfect normal distribution.
-
+To evaluate whether the negative log returns of Bitcoin follow a normal distribution, we first examined the data visually using a histogram (see Figure 3) and a QQ-plot (see Figure 4). The histogram of the negative log returns suggests that the data may be approximately normally distributed, though some deviations from normality could exist. Additionally, the QQ-plot shows that the returns are normally distributed for non-extreme values, but there are noticeable deviations in the tails, indicating that the negative log returns may not follow a perfect normal distribution.
 
 To formally test for normality, we applied the Anderson-Darling test (see Table 3), which gave a p-value less than 0.05. As a result, we reject the null hypothesis (H0) that the data is normally distributed. This confirms that, despite appearing somewhat normal in the central part of the distribution, the negative log returns are not normally distributed, especially due to the extreme values.
+
+### d) and e) Fitting a t-Distribution and Comparing Tails
+
+Since the negative log returns deviate from normality, particularly in the extremes, we fit a t-distribution to the scaled data to check if it better captures these extreme values. A QQ-plot was generated to compare the negative log returns with the theoretical t-distribution (see Figure 5), which showed that the data fits the t-distribution quite well, including in the tails. For comparison, we also generated a QQ-plot for the normal distribution (see Figure 6), which demonstrated a poorer fit, particularly for extreme values. This suggests that the t-distribution, with its ability to model heavy tails, is a more appropriate fit for the data (see Figure 7).
+
+Next, we compared the density plots of the normal and t-distributions. As expected, the t-distribution exhibited heavier tails than the normal distribution, meaning it better accounts for extreme values observed in the data (see Figure 8).
+
+```{r, fig.align='center', fig.width=7, fig.height=3}
+# Scale the negative log returns
+bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
+
+# Fit a t-distribution to the negative log returns
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+# Recalculate degrees of freedom within the same chunk
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+df <- t_fit$estimate["df"]
+
+# Calculate mean and standard deviation of the negative log returns
+mean_neg_log_returns <- mean(bitcoin_negative_log_returns)
+sd_neg_log_returns <- sd(bitcoin_negative_log_returns)
+
+# Create a sequence of values for plotting the densities
+x_vals <- seq(min(bitcoin_negative_log_returns), max(bitcoin_negative_log_returns), length.out = 1000)
+
+# Calculate density for the normal distribution with the same mean and standard deviation
+normal_density <- dnorm(x_vals, mean = mean_neg_log_returns, sd = sd_neg_log_returns)
+
+# Calculate density for the t-distribution with the fitted degrees of freedom
+t_density <- dt((x_vals - mean_neg_log_returns) / sd_neg_log_returns, df = df) / sd_neg_log_returns
+
+# Plot the densities to compare tails
+plot(x_vals, normal_density, type = "l", col = "blue", lwd = 2, 
+     main = "Figure 8: Density Comparison: Normal vs t-Distribution",
+     ylab = "Density", xlab = "Negative Log Returns")
+lines(x_vals, t_density, col = "red", lwd = 2)
+legend("topright", legend = c("Normal", "t-Distribution"), col = c("blue", "red"), lwd = 2)
+```
+
+Since the Bitcoin data follows the t-distribution more closely, and the t-distribution has fatter tails than the normal distribution, this indicates that extreme values (large deviations from the mean) are more likely in the Bitcoin data than if it were normally distributed.
+
+# Part 2: Financial time series, heteroscedasticity and the random walk hypothesis
 
 # Appendices 
 
@@ -96,6 +169,102 @@ hist(bitcoin_negative_log_returns, breaks = 30, main = "Histogram of Negative Lo
 qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns")
 qqline(bitcoin_negative_log_returns, col = "red") # --> normally distributed only for non-extreme values
 ```
+
+#### Figure 5: QQ-Plot of Negative Log Returns with t-Distribution
+
+```{r, fig.align='center', fig.width=4, fig.height=3}
+### QQ-plot for t-distribution : seem to follow it quite well
+# Generate a QQ-plot for the t-distribution fit
+qqplot(qt(ppoints(length(bitcoin_negative_log_returns)), df = df_value), 
+       bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns t-Distribution",
+       xlab = "Theoretical Quantiles (t-distribution)", ylab = "Sample Quantiles")
+# Add a 45-degree line to the QQ-plot
+qqline(bitcoin_negative_log_returns, distribution = function(p) qt(p, df = df_value), col = "red")
+```
+
+#### Figure 6: QQ-Plot of Negative Log Returns with Normal Distribution
+
+```{r, fig.align='center', fig.width=4, fig.height=3}
+### QQ-plot for normal distribution : not so well
+# For comparison, create a QQ-plot for the normal distribution fit
+qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Normal Distribution")
+qqline(bitcoin_negative_log_returns, col = "red")
+```
+
+#### Figure 7: Histogram of Bitcoin Negative Log Returns with Fitted t and Normal Distribution
+
+```{r}
+# Extract the fitted parameters from t_fit
+m <- t_fit$estimate["m"]      # Mean (location parameter)
+s <- t_fit$estimate["s"]      # Scale (related to standard deviation)
+df <- t_fit$estimate["df"]    # Degrees of freedom
+
+# Calculate the mean and standard deviation for the normal distribution
+mean_normal <- mean(bitcoin_negative_log_returns_scaled)
+sd_normal <- sd(bitcoin_negative_log_returns_scaled)
+
+# Plot the histogram of your data
+hist(bitcoin_negative_log_returns_scaled, breaks = 30, probability = TRUE, 
+     main = "Histogram of Bitcoin Neg. Log Ret. with Fitted t and Normal Distribution",
+     xlab = "Negative Log Returns", col = "lightblue", border = "black")
+
+# Overlay the density of the fitted t-distribution
+x_vals <- seq(min(bitcoin_negative_log_returns_scaled), max(bitcoin_negative_log_returns_scaled), length.out = 1000)
+t_density <- dt((x_vals - m) / s, df) / s  # Density of the t-distribution with fitted parameters
+
+# Add the t-distribution curve to the plot
+lines(x_vals, t_density, col = "red", lwd = 2)
+
+# Overlay the density of the normal distribution
+normal_density <- dnorm(x_vals, mean = mean_normal, sd = sd_normal)
+
+# Add the normal distribution curve to the plot
+lines(x_vals, normal_density, col = "blue", lwd = 2)
+
+# Add a legend to distinguish between t-distribution and normal distribution
+legend("topright", legend = c("Fitted t-Distribution", "Normal Distribution"), 
+       col = c("red", "blue"), lwd = 2)
+```
+
+
+#### Figure 8: Density Comparison: Normal vs t-Distribution
+
+```{r, fig.align='center', fig.width=7, fig.height=3}
+# Scale the negative log returns
+bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
+
+# Fit a t-distribution to the negative log returns
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+# Recalculate degrees of freedom within the same chunk
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+df <- t_fit$estimate["df"]
+
+# Calculate mean and standard deviation of the negative log returns
+mean_neg_log_returns <- mean(bitcoin_negative_log_returns)
+sd_neg_log_returns <- sd(bitcoin_negative_log_returns)
+
+# Create a sequence of values for plotting the densities
+x_vals <- seq(min(bitcoin_negative_log_returns), max(bitcoin_negative_log_returns), length.out = 1000)
+
+# Calculate density for the normal distribution with the same mean and standard deviation
+normal_density <- dnorm(x_vals, mean = mean_neg_log_returns, sd = sd_neg_log_returns)
+
+# Calculate density for the t-distribution with the fitted degrees of freedom
+t_density <- dt((x_vals - mean_neg_log_returns) / sd_neg_log_returns, df = df) / sd_neg_log_returns
+
+# Plot the densities to compare tails
+plot(x_vals, normal_density, type = "l", col = "blue", lwd = 2, 
+     main = "Figure 8: Density Comparison: Normal vs t-Distribution",
+     ylab = "Density", xlab = "Negative Log Returns")
+lines(x_vals, t_density, col = "red", lwd = 2)
+legend("topright", legend = c("Normal", "t-Distribution"), col = c("blue", "red"), lwd = 2)
+```
+
+
 
 ## Results tables
 
