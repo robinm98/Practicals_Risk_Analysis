@@ -129,3 +129,4 @@ ad_test_result <- ad.test(bitcoin_negative_log_returns)
 print(ad_test_result)
 ```
 
+# Code Appendix
