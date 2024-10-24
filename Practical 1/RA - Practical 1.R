@@ -78,17 +78,15 @@ bitcoin_data_long_standardized <- pivot_longer(bitcoin_data_standardized,
 # Plot the standardized series on a common scale, ensuring raw prices are drawn last (on top)
 ggplot() +
   geom_line(data = subset(bitcoin_data_long_standardized, Series == "Negative_Log_Returns_Standardized"), 
-            aes(x = Time, y = Values, color = Series), linetype = "dashed") +  # Dashed line for log returns
+            aes(x = Time, y = Values, color = Series), size = 0.5) +  
   geom_line(data = subset(bitcoin_data_long_standardized, Series == "Bitcoin_Prices_Standardized"), 
-            aes(x = Time, y = Values, color = Series), size = 1.2) +  # Solid, thicker line for prices
+            aes(x = Time, y = Values, color = Series), size = 0.5) +  
   labs(title = "Comparison of Standardized Bitcoin Prices and Negative Log Returns",
        x = "Time", y = "Standardized Values") +
   scale_color_manual(values = c("Bitcoin_Prices_Standardized" = "blue", 
                                 "Negative_Log_Returns_Standardized" = "red"),
                      labels = c("Prices", "Log Returns")) +  # Shortened labels
   theme_minimal()
-
-
 
 ### c
 
@@ -97,7 +95,7 @@ hist(bitcoin_negative_log_returns, breaks = 30, main = "Histogram of Negative Lo
 # --> seem normally distributed
 
 # Create a QQ-plot to check normality
-qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns")
+qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns vs. Normal Distribution")
 qqline(bitcoin_negative_log_returns, col = "red") # --> normally distributed only for non-extreme values
 
 # Perform the Anderson-Darling test
@@ -121,7 +119,7 @@ df_value <- t_fit$estimate["df"]
 ### QQ-plot for t-distribution : seem to follow it quite well
 # Generate a QQ-plot for the t-distribution fit
 qqplot(qt(ppoints(length(bitcoin_negative_log_returns)), df = df_value), 
-       bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns t-Distribution",
+       bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns vs t-Distribution",
        xlab = "Theoretical Quantiles (t-distribution)", ylab = "Sample Quantiles")
 # Add a 45-degree line to the QQ-plot
 qqline(bitcoin_negative_log_returns, distribution = function(p) qt(p, df = df_value), col = "red")
