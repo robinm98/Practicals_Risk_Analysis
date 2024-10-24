@@ -7,6 +7,8 @@ library(tseries)
 library(nortest)
 library(MASS)
 library(fpp2)
+library(fGarch)
+library(lmtest)
 
 
 # Load data using a relative path
@@ -245,8 +247,6 @@ the data. However the residuals do not follow a normal distribution, and the var
 suggests that the ARIMA model may not be the best fit for the data. Maybe using a GARCH model could be more appropriate"
 
 ### d
-install.packages('fGarch')
-library(fGarch)
 
 ### Fitting a GARCH(1,1) model with a normal distribution
 garch_normal_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "norm", trace = FALSE)
@@ -380,9 +380,6 @@ print(shapiro_test)
         The ARIMA model clearly violates the homoscedasticity assumption, as it does not model the volatility clustering seen in the data.
         Both GARCH models (with normal and t-distributions) allow for heteroscedasticity and are specifically designed to model the changing variance over time. Hence, in these models, the homoscedasticity assumption is not violated because the models account for the non-constant variance."
 
-
-### --> TO BE CHECK AND ASSESS MORE CAREFULLY !!!
-
 ################## PART 3 ##################
 
 # 1st: Negative log-return of ETH
@@ -431,7 +428,6 @@ print(ccf_result)
 # This pattern indicates some degree of dependency between the 2 series, ETH potentially driving BTC at certain points.
 
 ### c
-library(lmtest)
 # Granger causality test for Bitcoin predicting ETH
 grangertest(eth_negative_log_returns ~ bitcoin_negative_log_returns, order = 10)
 # The first test gives a p-val very small (0.001<<), so we reject the null hypothesis.

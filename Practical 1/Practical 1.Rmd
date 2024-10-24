@@ -1,30 +1,131 @@
 ---
-title: "Practical 1"
-author: "Robin Michel"
+title: "Risk Analytics - Practical 1"
+subtitle : "Winter semester 2024-2025, HEC, UNIL"
+author: "Robin Michel, Faber Bickerstaffe, Antoine Magnin, Anastasia Pushkarev and Victorien Rodondi"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+
+# Load libraries
+library(readr)
+library(tseries)
+library(nortest)
+library(MASS)
+library(fpp2)
+library(fGarch)
+library(lmtest)
+
+# Load data using a relative path
+Crypto_data <- read_csv("Data/Crypto_data.csv")
 ```
 
-## R Markdown
+# Part 1: Financial Returns and Normality
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+### a) Assessing Stationarity of Bitcoin Prices
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+In this section, we analyze the raw Bitcoin prices to assess stationarity, as this determines whether transformations or differencing are required before applying time series models.
 
-```{r cars}
-summary(cars)
+We first plotted the Bitcoin prices (see Figure 1) to visually inspect for any apparent trends or patterns. From the plot, we can already observe a clear trend and some repeating patterns, which suggest that the series may be non-stationary. However, to formally confirm this, we applied the Augmented Dickey-Fuller (ADF) test (see Table 1), which is a statistical test used to determine whether the series has a unit root—a key indicator of non-stationarity.
+
+The result of the ADF test gave a p-value of 0.3885, which is greater than the common significance level of 0.05. As a result, we fail to reject the null hypothesis (H0) that the series is non-stationary. This confirms that the raw Bitcoin prices are indeed non-stationary, reinforcing our initial visual observation of trends and structural patterns over time.
+
+### b) Computing Negative Log Returns and Assessing Stationarity
+
+Since the raw Bitcoin prices were found to be non-stationary, as identified in part a, we proceed by computing the negative log returns. Negative log returns are commonly used in financial time series analysis because they often result in a stationary series, making them more suitable for modeling and forecasting. 
+
+Upon visual inspection, the plot of the negative log returns also appears to be stationary (see Figure 2). To formally assess this, we applied the Augmented Dickey-Fuller (ADF) test (see Table 2), which resulted in a p-value of 0.01. Since this is less than 0.05, we reject the null hypothesis (H0) that the series is non-stationary, confirming that the negative log returns are indeed stationary.
+
+### c) Assessing the Normality of Negative Log Returns
+
+To evaluate whether the negative log returns of Bitcoin follow a normal distribution, we first examined the data visually using a histogram (see Figure 3) and a QQ-plot (see Figure 4).
+
+The histogram of the negative log returns suggests that the data may be approximately normally distributed, though some deviations from normality could exist. Additionally, the QQ-plot shows that the returns are normally distributed for non-extreme values, but there are noticeable deviations in the tails, indicating that the negative log returns may not follow a perfect normal distribution.
+
+
+To formally test for normality, we applied the Anderson-Darling test (see Table 3), which gave a p-value less than 0.05. As a result, we reject the null hypothesis (H0) that the data is normally distributed. This confirms that, despite appearing somewhat normal in the central part of the distribution, the negative log returns are not normally distributed, especially due to the extreme values.
+
+# Appendices 
+
+## Figures
+
+#### Figure 1: Bitcoin Prices Over Time
+
+```{r, fig.align='center', fig.width=4, fig.height=3}
+# Extract Bitcoin prices 
+bitcoin_prices <- Crypto_data[[1]] # or Crypto_data$Bitcoin
+
+# Plot the Bitcoin prices to visually inspect stationarity
+plot(bitcoin_prices, type = "l", main = "Bitcoin Prices", xlab = "Time", ylab = "Price")
 ```
 
-## Including Plots
+#### Figure 2: Negative Log Returns of Bitcoin Over Time
 
-You can also embed plots, for example:
+```{r, fig.align='center', fig.width=4, fig.height=3}
+# Create a function to compute negative log returns
+negative_log_returns <- function(prices) {
+  # Calculate log returns
+  log_returns <- diff(log(prices))
+  # Return the negative of the log returns
+  return(-log_returns)
+}
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+# Apply the function to the Bitcoin prices
+bitcoin_negative_log_returns <- negative_log_returns(bitcoin_prices)
+
+# Plot the negative log returns
+plot(bitcoin_negative_log_returns, type = "l", main = "Negative Log Returns of Bitcoin", xlab = "Time", ylab = "Negative Log Returns")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+#### Figure 3: Histogram of Negative Log Returns
+
+```{r, fig.align='center', fig.width=4, fig.height=3}
+# Draw a histogram of the negative log returns
+hist(bitcoin_negative_log_returns, breaks = 30, main = "Histogram of Negative Log Returns", xlab = "Negative Log Returns", col = "lightblue", border = "black")
+# --> seems normally distributed
+```
+
+#### Figure 4: QQ-Plot of Negative Log Returns
+
+```{r, fig.align='center', fig.width=4, fig.height=3}
+# Create a QQ-plot to check normality
+qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns")
+qqline(bitcoin_negative_log_returns, col = "red") # --> normally distributed only for non-extreme values
+```
+
+## Results tables
+
+#### Table 1: Augmented Dickey-Fuller Test for Bitcoin Prices
+
+```{r}
+# Perform the ADF test
+adf_test_result <- adf.test(bitcoin_prices)
+
+# Print the ADF test result
+print(adf_test_result)
+```
+
+#### Table 2: Augmented Dickey-Fuller Test for Negative Log Returns
+
+```{r}
+# Perform the ADF test on negative log returns
+adf_test_neg_log <- adf.test(bitcoin_negative_log_returns)
+
+# Print the result
+print(adf_test_neg_log)
+```
+
+#### Table 3: Anderson-Darling Test for Normality of Negative Log Returns
+
+```{r}
+# Perform the Anderson-Darling test
+ad_test_result <- ad.test(bitcoin_negative_log_returns)
+
+# Print the test result
+print(ad_test_result)
+```
+
