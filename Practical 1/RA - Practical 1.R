@@ -9,6 +9,8 @@ library(MASS)
 library(fpp2)
 library(fGarch)
 library(lmtest)
+library(tidyr)
+library(ggplot2)
 
 
 # Load data using a relative path
@@ -54,6 +56,38 @@ adf_test_neg_log <- adf.test(bitcoin_negative_log_returns)
 
 # Print the result
 print(adf_test_neg_log) # p-value = 0.01 < 0.05, so it's stationary as we reject H0 (H0: Data are non-stationnary)
+
+### Plot both series on a common scale ###
+
+# Standardize both series (subtract mean, divide by standard deviation)
+bitcoin_prices_standardized <- scale(bitcoin_prices)
+bitcoin_negative_log_returns_standardized <- scale(bitcoin_negative_log_returns)
+
+# Create a data frame combining both series for plotting
+bitcoin_data_standardized <- data.frame(
+  Time = 1:length(bitcoin_prices_standardized),
+  Bitcoin_Prices_Standardized = bitcoin_prices_standardized,
+  Negative_Log_Returns_Standardized = c(NA, bitcoin_negative_log_returns_standardized)  # Add NA to align lengths
+)
+
+# Reshape the data for ggplot
+bitcoin_data_long_standardized <- pivot_longer(bitcoin_data_standardized, 
+                                               cols = c(Bitcoin_Prices_Standardized, Negative_Log_Returns_Standardized), 
+                                               names_to = "Series", values_to = "Values")
+
+# Plot the standardized series on a common scale, ensuring raw prices are drawn last (on top)
+ggplot() +
+  geom_line(data = subset(bitcoin_data_long_standardized, Series == "Negative_Log_Returns_Standardized"), 
+            aes(x = Time, y = Values, color = Series), linetype = "dashed") +  # Dashed line for log returns
+  geom_line(data = subset(bitcoin_data_long_standardized, Series == "Bitcoin_Prices_Standardized"), 
+            aes(x = Time, y = Values, color = Series), size = 1.2) +  # Solid, thicker line for prices
+  labs(title = "Comparison of Standardized Bitcoin Prices and Negative Log Returns",
+       x = "Time", y = "Standardized Values") +
+  scale_color_manual(values = c("Bitcoin_Prices_Standardized" = "blue", 
+                                "Negative_Log_Returns_Standardized" = "red"),
+                     labels = c("Prices", "Log Returns")) +  # Shortened labels
+  theme_minimal()
+
 
 
 ### c
