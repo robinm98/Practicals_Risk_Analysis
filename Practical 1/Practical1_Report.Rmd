@@ -121,6 +121,23 @@ Since the Bitcoin data follows the t-distribution more closely, and the t-distri
 
 # Part 2: Financial time series, heteroscedasticity and the random walk hypothesis
 
+## a) and b) Assessing Autocorrelation in Bitcoin Prices
+
+Building on the previous stationarity analysis, we further explored the autocorrelation of the raw Bitcoin prices and the negative log returns. In part (a), we plotted the ACF (Autocorrelation Function) for both series (see Figures 9 and 10). As expected, the raw Bitcoin prices showed strong and persistent autocorrelation, consistent with their non-stationary nature. In contrast, the negative log returns displayed only minor, short-lived autocorrelation, aligning with their stationary behavior.
+
+In part (b), we applied the Ljung-Box test (see Tables 4 and 5) to formally assess autocorrelation. The test confirmed significant autocorrelation in both series (p-value < 0.05). However, the negative log returns exhibited much weaker and short-term autocorrelation compared to the raw prices. This suggests that, while the log returns are stationary, they still contain some mild autocorrelation, typical of financial time series.
+
+In summary, the raw series has strong autocorrelation and is non-stationary, whereas the negative log returns are stationary with only moderate, short-lived autocorrelation, making them better suited for modeling.
+
+
+## c) ARIMA Model 
+
+In this section, we proposed an ARIMA model for the negative log returns based on the analysis of the ACF and PACF plots (see Figures 10 and 11). The ACF plot showed a spike at lag 2, suggesting a moving average component of q = 2. Similarly, the PACF plot indicated a significant spike at lag 2, suggesting an autoregressive component of p = 2. Since the series is already stationary, we set d = 0. Based on this, we fit an ARIMA(2, 0, 2) model to the negative log returns. To confirm our model selection, we used the auto.arima() function, which automatically identifies the best ARIMA model. The function also suggested an ARIMA(2, 0, 2) model, reinforcing our choice.
+
+Next, we assessed the residuals of the ARIMA model to evaluate its adequacy. The ACF of the residuals showed no significant autocorrelation (see Figure 12), indicating that the model successfully captured the underlying patterns in the data. The Ljung-Box test further confirmed this (see Table 6), as the p-value was greater than 0.05, suggesting no significant autocorrelation remaining in the residuals. However, the QQ-plot (see Figure 13) and Shapiro-Wilk test (see Table 7) indicated that the residuals do not follow a normal distribution (p-value < 0.05). Additionally, the plot of residuals over time (see Figure 14) showed signs of volatility clustering, implying that the variance is not constant. This suggests that while the ARIMA model adequately captures the autocorrelation in the data, it fails to account for the changing variance and heavy tails in the residuals.
+
+In conclusion, the ARIMA(2, 0, 2) model effectively captures the serial dependencies in the negative log returns but may not fully address the volatility present in the data. This indicates that a GARCH model, which accounts for time-varying volatility, could be a better fit for modeling the residuals.
+
 # Appendices
 
 ## Practical 1
@@ -253,7 +270,6 @@ legend("topright", legend = c("Fitted t-Distribution", "Normal Distribution"),
        col = c("red", "blue"), lwd = 2)
 ```
 
-
 #### Figure 8: Density Comparison: Normal vs t-Distribution
 
 ```{r, fig.align='center', fig.width=7, fig.height=4}
@@ -291,7 +307,54 @@ lines(x_vals, t_density, col = "red", lwd = 2)
 legend("topright", legend = c("Normal", "t-Distribution"), col = c("blue", "red"), lwd = 2)
 ```
 
+#### Figure 9: ACF of Bitcoin Prices
 
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Plot the ACF of the raw Bitcoin series
+ggAcf(bitcoin_prices, main = "ACF of Raw Bitcoin Prices")
+```
+
+#### Figure 10: ACF of Negative Log Returns
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Plot the ACF of the negative log returns
+ggAcf(bitcoin_negative_log_returns, main = "ACF of Negative Log Returns")
+```
+
+#### Figure 11: PACF of Negative Log Returns
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Plot the PACF of the negative log returns
+ggPacf(bitcoin_negative_log_returns, main = "PACF of Negative Log Returns")
+```
+
+#### Figure 12: ACF of ARIMA(2, 0, 2) Residuals
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+arima_fit <- arima(bitcoin_negative_log_returns, order = c(2,0,2))
+print(arima_fit)
+
+# Extract the residuals
+residuals_arima <- residuals(arima_fit)
+
+# ACF of residuals (to check for autocorrelation)
+acf(residuals_arima, main = "ACF of ARIMA Model Residuals")
+```
+
+#### Figure 13: QQ-Plot of ARIMA(2, 0, 2) Residuals
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# QQ-plot of residuals (to check for normality)
+qqnorm(residuals_arima)
+qqline(residuals_arima, col = "red")
+```
+
+#### Figure 14: Residuals of ARIMA(2, 0, 2) Over Time
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Plot residuals over time (to check for changing variance)
+plot(residuals_arima, main = "Residuals of ARIMA Model", ylab = "Residuals", xlab = "Time")
+```
 
 ## Results tables
 
@@ -323,6 +386,40 @@ ad_test_result <- ad.test(bitcoin_negative_log_returns)
 
 # Print the test result
 print(ad_test_result)
+```
+
+#### Table 4: Ljung-Box Test for Autocorrelation in Bitcoin Prices
+
+```{r}
+# Perform Ljung-Box test for the raw Bitcoin series
+ljung_box_raw <- Box.test(bitcoin_prices, lag = 20, type = "Ljung-Box") # lag = 20 because rule of thumb n/10
+
+# Print the results for the raw series
+print(ljung_box_raw)
+```
+
+#### Table 5: Ljung-Box Test for Autocorrelation in Negative Log Returns
+
+```{r}
+# Perform Ljung-Box test for the negative log returns
+ljung_box_neg_log <- Box.test(bitcoin_negative_log_returns, lag = 20, type = "Ljung-Box")
+
+# Print the results for the negative log returns
+print(ljung_box_neg_log)
+```
+
+#### Table 6: Ljung-Box Test for ARIMA(2, 0, 2) Residuals
+
+```{r}
+# Ljung-Box test on residuals (to formally test for autocorrelation)
+Box.test(residuals_arima, lag = 20, type = "Ljung-Box")
+```
+
+#### Table 7: Shapiro-Wilk Test for Normality of ARIMA(2, 0, 2) Residuals
+
+```{r}
+# Shapiro-Wilk test (to test for normality)
+shapiro.test(residuals_arima)
 ```
 
 # Code Appendix

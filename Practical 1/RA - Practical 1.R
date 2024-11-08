@@ -55,7 +55,7 @@ plot(bitcoin_negative_log_returns, type = "l", main = "Negative Log Returns of B
 adf_test_neg_log <- adf.test(bitcoin_negative_log_returns)
 
 # Print the result
-print(adf_test_neg_log) # p-value = 0.01 < 0.05, so it's stationary as we reject H0 (H0: Data are non-stationnary)
+print(adf_test_neg_log) # p-value = 0.01 < 0.05, so it's stationary as we reject H0 (H0: Data are stationnary)
 
 ### Plot both series on a common scale ###
 
@@ -203,7 +203,7 @@ than if it were normally distributed."
 ### a
 
 # Plot the ACF of the raw Bitcoin series
-ggAcf(bitcoin_prices, main = "ACF of Negative Log Returns") # significant autocorrelation, non-stationary, difficult to model
+ggAcf(bitcoin_prices, main = "ACF of Raw Bitcoin Prices") # significant autocorrelation, non-stationary, difficult to model
 
 # Plot the ACF of the negative log returns
 ggAcf(bitcoin_negative_log_returns, main = "ACF of Negative Log Returns") # no significant autocorrelation, stationary, easier to model
@@ -239,12 +239,12 @@ is much lower for the negative log returns compared to the raw Bitcoin series."
 ### c
 
 # Plot the ACF of the negative log returns
-ggAcf(bitcoin_negative_log_returns, main = "ACF of Negative Log Returns") # Spike at lag 2 so p=2
+ggAcf(bitcoin_negative_log_returns, main = "ACF of Negative Log Returns") # Spike at lag 2 so q=2
 
 # Plot the PACF of the negative log returns
 ggPacf(bitcoin_negative_log_returns, main = "PACF of Negative Log Returns") # Spike at lag 2 so p=2
 
-# Fit an ARIMA(2, 0,2) model to the negative log returns (d=0 because non-stationarity form the ACF and PACF)
+# Fit an ARIMA(2, 0,2) model to the negative log returns (d=0 because stationarity form the ACF and PACF)
 arima_fit <- arima(bitcoin_negative_log_returns, order = c(2,0,2))
 print(arima_fit)
 
