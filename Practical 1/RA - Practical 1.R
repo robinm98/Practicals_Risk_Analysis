@@ -301,7 +301,7 @@ Box.test(garch_normal_residuals, lag = 20, type = "Ljung-Box")
 # QQ-Plot to check for normality of residuals
 qqnorm(garch_normal_residuals, main = "QQ-Plot of Residuals (GARCH Normal)")
 qqline(garch_normal_residuals, col = "red")
-### There are deviations in the tails, there are so extreme values. In principle, t-distr will correct it!
+### There are deviations in the tails, there are so extreme values
 
 shapiro.test(garch_normal_residuals)
 ### It rejects the hypothesis of the normality for the residuals. So the residuals are not normally distributed.
@@ -321,14 +321,20 @@ acf(garch_t_residuals, main = "ACF of Residuals (GARCH t-Distribution)")
 # Perform Ljung-Box test on residuals
 Box.test(garch_t_residuals, lag = 20, type = "Ljung-Box")
 
-# QQ-Plot to check for normality of residuals
-qqnorm(garch_t_residuals, main = "QQ-Plot of Residuals (GARCH t-Distribution)")
-qqline(garch_t_residuals, col = "red")
+# Generate a QQ-plot for the t-distribution residuals
+df_t <- garch_t_fit@fit$par["shape"]  # Degrees of freedom for the t-distribution
+qqplot(qt(ppoints(length(garch_t_residuals)), df = df_t), 
+       garch_t_residuals, main = "QQ-Plot of Residuals (GARCH t-Distribution vs t-Quantiles)",
+       xlab = "Theoretical Quantiles (t-distribution)", ylab = "Sample Quantiles")
+# t-Distribution GARCH Model follow the t-distribution quite well meaning it captures the heavy tails of the data.
+
+# Add a 45-degree line
+qqline(garch_t_residuals, distribution = function(p) qt(p, df = df_t), col = "red")
 
 # Shapiro-Wilk test for normality of residuals
 shapiro.test(garch_t_residuals)
 
-### The conclusions are the same for all the indicators, because the results are very close.
+### Conclusion between Normal-GARCH and t-GARCH model: both show still some autocorelation but the t-distribution model is more appropriate for the data because it captures the heavy tails better than the normal distribution model.
 
 # Compare the models based on AIC, BIC, or log-likelihood (lower AIC/BIC or higher log-likelihood is better)
 cat("AIC (Normal):", garch_normal_fit@fit$ics[1], "\n")
@@ -337,11 +343,9 @@ cat("AIC (t-Distribution):", garch_t_fit@fit$ics[1], "\n")
 cat("BIC (Normal):", garch_normal_fit@fit$ics[2], "\n")
 cat("BIC (t-Distribution):", garch_t_fit@fit$ics[2], "\n")
 
-### The values are really close, but the normal model appears to be better than the t-distr (AIC: -10.60 vs -10.75)
+### The values are really close and not significantly different, so we can't conclude which model is better based on AIC or BIC but the t-distribution model is more appropriate for the data because it captures the heavy tails better than the normal distribution model.
 
 ### e
-
-# Assuming `neg_log_returns` is the negative log returns data
 
 # Fit an ARIMA(2,0,2) model on the negative log returns
 arima_fit <- arima(bitcoin_negative_log_returns, order = c(2, 0, 2))

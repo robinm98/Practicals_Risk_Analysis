@@ -35,41 +35,6 @@ We first plotted the Bitcoin prices (see Figure 2) to visually inspect for trend
 
 To address this, we computed the negative log returns, a transformation commonly used in financial time series analysis to obtain a stationary series. Visual inspection of the negative log returns (see Figure 3) suggested stationarity. This was further confirmed by the ADF test (see Table 2), which gave a p-value of 0.01, leading us to reject the null hypothesis of non-stationarity and confirming that the negative log returns are stationary.
 
-```{r, fig.align='center', fig.width=7, fig.height=2}
-# Extract Bitcoin prices 
-bitcoin_prices <- Crypto_data[[1]] # or Crypto_data$Bitcoin
-
-# Create a function to compute negative log returns
-negative_log_returns <- function(prices) {
-  # Calculate log returns
-  log_returns <- diff(log(prices))
-  # Return the negative of the log returns
-  return(-log_returns)
-}
-
-# Apply the function to the Bitcoin prices
-bitcoin_negative_log_returns <- negative_log_returns(bitcoin_prices)
-
-# Create a data frame for both Bitcoin prices and negative log returns
-bitcoin_data <- data.frame(
-  Time = 1:length(bitcoin_prices),
-  Bitcoin_Prices = bitcoin_prices,
-  Negative_Log_Returns = c(NA, bitcoin_negative_log_returns) # Aligning lengths by adding NA
-)
-
-# Reshape data for facet wrapping
-bitcoin_data_long <- pivot_longer(bitcoin_data, cols = c(Bitcoin_Prices, Negative_Log_Returns), 
-                                  names_to = "Series", values_to = "Values")
-
-# Create the facet plot
-ggplot(bitcoin_data_long, aes(x = Time, y = Values)) +
-  geom_line() +
-  facet_wrap(~ Series, scales = "free_y") +
-  labs(title = "Figure 2 and 3: Bitcoin Prices and Negative Log Returns Over Time", 
-       x = "Time", y = "Value") +
-  theme_minimal()
-```
-
 ### c) Assessing the Normality of Negative Log Returns
 
 To evaluate whether the negative log returns of Bitcoin follow a normal distribution, we first examined the data visually using a histogram (see Figure 4) and a QQ-plot (see Figure 5). The histogram of the negative log returns suggests that the data may be approximately normally distributed, though some deviations from normality could exist. Additionally, the QQ-plot shows that the returns are normally distributed for non-extreme values, but there are noticeable deviations in the tails, indicating that the negative log returns may not follow a perfect normal distribution.
@@ -81,41 +46,6 @@ To formally test for normality, we applied the Anderson-Darling test (see Table 
 Since the negative log returns deviate from normality, particularly in the extremes, we fit a t-distribution to the scaled data to check if it better captures these extreme values. A QQ-plot was generated to compare the negative log returns with the theoretical t-distribution (see Figure 6), which showed that the data fits the t-distribution quite well, including in the tails. For comparison, we also generated a QQ-plot for the normal distribution (see Figure 5), which demonstrated a poorer fit, particularly for extreme values. This suggests that the t-distribution, with its ability to model heavy tails, is a more appropriate fit for the data (see Figure 8).
 
 Next, we compared the density plots of the normal and t-distributions. As expected, the t-distribution exhibited heavier tails than the normal distribution, meaning we should expect more extreme, unexpected events in a t-distribution (see Figure 9).
-
-```{r, fig.align='center', fig.width=7, fig.height=3}
-# Scale the negative log returns
-bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
-
-# Fit a t-distribution to the negative log returns
-t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
-
-# Extract the degrees of freedom (df) from the fitted distribution
-df_value <- t_fit$estimate["df"]
-
-# Recalculate degrees of freedom within the same chunk
-t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
-df <- t_fit$estimate["df"]
-
-# Calculate mean and standard deviation of the negative log returns
-mean_neg_log_returns <- mean(bitcoin_negative_log_returns)
-sd_neg_log_returns <- sd(bitcoin_negative_log_returns)
-
-# Create a sequence of values for plotting the densities
-x_vals <- seq(min(bitcoin_negative_log_returns), max(bitcoin_negative_log_returns), length.out = 1000)
-
-# Calculate density for the normal distribution with the same mean and standard deviation
-normal_density <- dnorm(x_vals, mean = mean_neg_log_returns, sd = sd_neg_log_returns)
-
-# Calculate density for the t-distribution with the fitted degrees of freedom
-t_density <- dt((x_vals - mean_neg_log_returns) / sd_neg_log_returns, df = df) / sd_neg_log_returns
-
-# Plot the densities to compare tails
-plot(x_vals, normal_density, type = "l", col = "blue", lwd = 2, 
-     main = "Figure 8: Density Comparison: Normal vs t-Distribution",
-     ylab = "Density", xlab = "Negative Log Returns")
-lines(x_vals, t_density, col = "red", lwd = 2)
-legend("topright", legend = c("Normal", "t-Distribution"), col = c("blue", "red"), lwd = 2)
-```
 
 Since the Bitcoin data follows the t-distribution more closely, and the t-distribution has fatter tails than the normal distribution, this indicates that extreme values (large deviations from the mean) are more likely in the Bitcoin data than if it were normally distributed.
 
@@ -130,13 +60,41 @@ In part (b), we applied the Ljung-Box test (see Tables 4 and 5) to formally asse
 In summary, the raw series has strong autocorrelation and is non-stationary, whereas the negative log returns are stationary with only moderate, short-lived autocorrelation, making them better suited for modeling.
 
 
-## c) ARIMA Model 
+## c) ARIMA Modeling
 
 In this section, we proposed an ARIMA model for the negative log returns based on the analysis of the ACF and PACF plots (see Figures 10 and 11). The ACF plot showed a spike at lag 2, suggesting a moving average component of q = 2. Similarly, the PACF plot indicated a significant spike at lag 2, suggesting an autoregressive component of p = 2. Since the series is already stationary, we set d = 0. Based on this, we fit an ARIMA(2, 0, 2) model to the negative log returns. To confirm our model selection, we used the auto.arima() function, which automatically identifies the best ARIMA model. The function also suggested an ARIMA(2, 0, 2) model, reinforcing our choice.
 
-Next, we assessed the residuals of the ARIMA model to evaluate its adequacy. The ACF of the residuals showed no significant autocorrelation (see Figure 12), indicating that the model successfully captured the underlying patterns in the data. The Ljung-Box test further confirmed this (see Table 6), as the p-value was greater than 0.05, suggesting no significant autocorrelation remaining in the residuals. However, the QQ-plot (see Figure 13) and Shapiro-Wilk test (see Table 7) indicated that the residuals do not follow a normal distribution (p-value < 0.05). Additionally, the plot of residuals over time (see Figure 14) showed signs of volatility clustering, implying that the variance is not constant. This suggests that while the ARIMA model adequately captures the autocorrelation in the data, it fails to account for the changing variance and heavy tails in the residuals.
+Next, we assessed the residuals of the ARIMA model to evaluate its adequacy. The ACF of the residuals showed no significant autocorrelation (see Figure 12), indicating that the model successfully captured the underlying patterns in the data. The Ljung-Box test further confirmed this (see Table 6), as the p-value was greater than 0.05, suggesting no significant autocorrelation remaining in the residuals. However, the QQ-plot (see Figure 13) and Shapiro-Wilk test (see Table 7) indicated that the residuals do not follow a normal distribution (p-value < 0.05). Additionally, the plot of residuals over time (see Figure 14) showed signs of volatility clustering, implying that the variance is not constant, which indicates the presence of heteroscedasticity. This suggests that while the ARIMA model adequately captures the autocorrelation in the data, it fails to account for the changing variance and heavy tails in the residuals.
 
 In conclusion, the ARIMA(2, 0, 2) model effectively captures the serial dependencies in the negative log returns but may not fully address the volatility present in the data. This indicates that a GARCH model, which accounts for time-varying volatility, could be a better fit for modeling the residuals.
+
+## d) GARCH Modeling
+
+In this section, we fitted GARCH(1,1) models to the negative log returns using both a normal distribution and a standardized t-distribution for the residuals, aiming to capture the time-varying volatility (heteroscedasticity) of the residuals observed in the data.
+
+Both models effectively captured most of the autocorrelation (see Figures 15 and 16), with only a small spike remaining at lag 1. The Ljung-Box test indicated some residual autocorrelation (p-value < 0.05) for both models (see Tables 8 and 9), suggesting minor dependencies left unmodeled. However, the QQ-plots revealed a notable difference (see Figures 17 and 18). The normal GARCH model showed clear deviations in the tails, indicating that the residuals deviate from a normal distribution and that the model did not handle extreme values well. The Shapiro-Wilk test (see Table 10) reject normality for the residuals of the normal GARCH model (p-value < 0.05), further confirming that the residuals do not align with a normal distribution and that the model is inadequate for capturing heavy tails. In contrast, the t-GARCH model's QQ-plot aligned better with the t-distribution quantiles, including in the tails, indicating that it better captured the heavy tails of the data. This confirms that the t-GARCH model more effectively handles extreme values compared to the normal GARCH model.
+
+Despite the differences in tail behavior, the AIC/BIC values for both models were very close (AIC: -10.60 for normal vs. -10.75 for t-distribution), making it difficult to choose one model based on these criteria alone. However, the better fit of the t-GARCH model to the tail behavior suggests it is more appropriate for the data, as it captures the heavy tails more effectively than the normal GARCH model.
+
+## e) Two-Step ARIMA-GARCH Modeling
+
+To address the potential issue of residual serial correlation when fitting a GARCH model directly on the negative log returns, we applied a two-step approach as suggested. First, we fitted an ARIMA(2,0,2) model to the negative log returns to capture any autocorrelation in the data. We then extracted the residuals from this ARIMA fit and applied a GARCH(1,1) model to these residuals.
+
+The Box-Ljung test on the residuals of the final GARCH model (see Table 11) showed a non-significant result (p-value=0.9365), indicating that there was no significant autocorrelation left in the residuals. This confirms that the two-step ARIMA-GARCH approach effectively eliminated serial correlation, solving the issue of residual autocorrelation seen when fitting a GARCH model directly on the negative log returns, and leading to a better specified model.
+
+## f) Compare the Three Models
+
+We compared the three models: ARIMA(2, 0, 2), GARCH(1, 1) with a normal distribution, and GARCH(1, 1) with a t-distribution, to find the best fit for the Bitcoin negative log returns.
+
+The ARIMA model effectively captured the autocorrelation but struggled with the changing variance (heteroscedasticity), as evidenced by volatility clustering in the residuals. This indicates a violation of the homoscedasticity assumption, since ARIMA cannot model time-varying variance. Additionally, the ARIMA model failed to account for the heavy tails in the data, as its residuals showed deviations from a normal distribution in the extremes.
+
+In contrast, the GARCH models handled the heteroscedasticity issue well, as they are specifically designed to model time-varying variance. The normal GARCH model captured most of the autocorrelation but did not fit the heavy tails effectively, showing deviations in the extremes. The t-GARCH model, however, provided a better fit for the tail behavior, as indicated by the alignment with the t-distribution quantiles in the QQ-plot.
+
+Overall, the t-GARCH model is the most suitable, effectively handling both the heteroscedasticity and the heavy tails typical in financial time series, unlike the ARIMA model and the normal GARCH model.
+
+# Part 3: Dependence between time series 
+
+
 
 # Appendices
 
@@ -147,6 +105,33 @@ In conclusion, the ARIMA(2, 0, 2) model effectively captures the serial dependen
 #### Figure 1: Bitcoin Prices and Negative Log Returns Over Time on Common Scale
 
 ```{r, fig.align='center', fig.width=7, fig.height=4}
+# Extract Bitcoin prices 
+bitcoin_prices <- Crypto_data[[1]] # or Crypto_data$Bitcoin
+
+# Create a function to compute negative log returns
+negative_log_returns <- function(prices) {
+  # Calculate log returns
+  log_returns <- diff(log(prices))
+  # Return the negative of the log returns
+  return(-log_returns)
+}
+
+# Apply the function to the Bitcoin prices
+bitcoin_negative_log_returns <- negative_log_returns(bitcoin_prices)
+
+# Scale the negative log returns
+bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
+
+# Fit a t-distribution to the negative log returns
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+# Recalculate degrees of freedom within the same chunk
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+df <- t_fit$estimate["df"]
+
 # Standardize both series (subtract mean, divide by standard deviation)
 bitcoin_prices_standardized <- scale(bitcoin_prices)
 bitcoin_negative_log_returns_standardized <- scale(bitcoin_negative_log_returns)
@@ -238,6 +223,19 @@ qqline(bitcoin_negative_log_returns, distribution = function(p) qt(p, df = df_va
 #### Figure 7: Histogram of Bitcoin Negative Log Returns with Fitted t and Normal Distribution
 
 ```{r, fig.align='center', fig.width=7, fig.height=4}
+# Scale the negative log returns
+bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
+
+# Fit a t-distribution to the negative log returns
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+# Recalculate degrees of freedom within the same chunk
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+df <- t_fit$estimate["df"]
+
 # Extract the fitted parameters from t_fit
 m <- t_fit$estimate["m"]      # Mean (location parameter)
 s <- t_fit$estimate["s"]      # Scale (related to standard deviation)
@@ -356,6 +354,54 @@ qqline(residuals_arima, col = "red")
 plot(residuals_arima, main = "Residuals of ARIMA Model", ylab = "Residuals", xlab = "Time")
 ```
 
+#### Figure 15: ACF of GARCH Normal(1, 1)
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+### Fitting a GARCH(1,1) model with a normal distribution
+garch_normal_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "norm", trace = FALSE)
+
+# Extract residuals from the fitted GARCH model with normal distribution
+garch_normal_residuals <- residuals(garch_normal_fit)
+
+# Plot ACF of residuals to check for autocorrelation
+acf(garch_normal_residuals, main = "ACF of Residuals (GARCH Normal)")
+```
+
+#### Figure 16: ACF of GARCH t-Distribution(1, 1)
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+### Fitting a GARCH(1,1) model with a standardized t-distribution ###
+garch_t_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "std", trace = FALSE)
+
+# Extract residuals from the fitted GARCH model with t-distribution
+garch_t_residuals <- residuals(garch_t_fit)
+
+# Plot ACF of residuals to check for autocorrelation
+acf(garch_t_residuals, main = "ACF of Residuals (GARCH t-Distribution)")
+```
+
+#### Figure 17: QQ-Plot of GARCH Normal(1, 1) Residuals
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# QQ-Plot to check for normality of residuals
+qqnorm(garch_normal_residuals, main = "QQ-Plot of Residuals (GARCH Normal)")
+qqline(garch_normal_residuals, col = "red")
+```
+
+#### Figure 18: QQ-Plot of GARCH t-Distribution(1, 1) Residuals
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Generate a QQ-plot for the t-distribution residuals
+df_t <- garch_t_fit@fit$par["shape"]  # Degrees of freedom for the t-distribution
+qqplot(qt(ppoints(length(garch_t_residuals)), df = df_t), 
+       garch_t_residuals, main = "QQ-Plot of Residuals (GARCH t-Distribution vs t-Quantiles)",
+       xlab = "Theoretical Quantiles (t-distribution)", ylab = "Sample Quantiles")
+# t-Distribution GARCH Model follow the t-distribution quite well meaning it captures the heavy tails of the data.
+
+# Add a 45-degree line
+qqline(garch_t_residuals, distribution = function(p) qt(p, df = df_t), col = "red")
+```
+
 ## Results tables
 
 #### Table 1: Augmented Dickey-Fuller Test for Bitcoin Prices
@@ -422,4 +468,41 @@ Box.test(residuals_arima, lag = 20, type = "Ljung-Box")
 shapiro.test(residuals_arima)
 ```
 
-# Code Appendix
+#### Table 8: Ljung-Box Test for GARCH Normal(1, 1) Residuals
+
+```{r}
+# Perform Ljung-Box test on residuals
+Box.test(garch_normal_residuals, lag = 20, type = "Ljung-Box")
+```
+
+#### Table 9: Ljung-Box Test for GARCH t-Distribution(1, 1) Residuals
+
+```{r}
+# Perform Ljung-Box test on residuals
+Box.test(garch_t_residuals, lag = 20, type = "Ljung-Box")
+```
+
+#### Table 10: Shapiro-Wilk Test for Normality of GARCH Normal(1, 1) Residuals
+
+```{r}
+shapiro.test(garch_normal_residuals)
+```
+#### Table 11: Ljung-Box Test for ARIMA-GARCH Residuals
+
+```{r}
+# Fit an ARIMA(2,0,2) model on the negative log returns
+arima_fit <- arima(bitcoin_negative_log_returns, order = c(2, 0, 2))
+
+# Extract the residuals from the ARIMA model
+arima_residuals <- residuals(arima_fit)
+
+# Fit a GARCH(1,1) model on the ARIMA residuals
+garch_fit_arima_resid <- garchFit(~ garch(1, 1), data = arima_residuals, trace = FALSE)
+
+garch_residuals <- residuals(garch_fit_arima_resid)
+
+# Box-Ljung test on GARCH residuals
+box_ljung_test <- Box.test(garch_residuals, lag = 20, type = "Ljung-Box")
+print(box_ljung_test)
+
+```
