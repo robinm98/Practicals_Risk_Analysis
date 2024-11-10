@@ -224,14 +224,12 @@ print(return_levels_gpd)
 
 #### (e) Compute Return Period for 100 mm of Precipitation ####
 
-# Define the threshold for return period calculation
-threshold_value <- 30
 
 # Calculate the return period for 100 mm of precipitation using the GPD model
 if (shape != 0) {
-  return_period_100 <- (1 / lambda) * (1 + (shape / scale) * (threshold_value - threshold_gpd))^(1 / shape)
+  return_period_100 <- (1 / lambda) * (1 + (shape / scale) * (threshold - threshold_gpd))^(1 / shape)
 } else {
-  return_period_100 <- (1 / lambda) * exp((threshold_value - threshold_gpd) / scale)
+  return_period_100 <- (1 / lambda) * exp((threshold - threshold_gpd) / scale)
 }
 
 # Print the return period for 100 mm of precipitation
