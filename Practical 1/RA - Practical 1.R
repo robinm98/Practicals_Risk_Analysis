@@ -11,6 +11,7 @@ library(fGarch)
 library(lmtest)
 library(tidyr)
 library(ggplot2)
+library(vars)
 
 
 # Load data using a relative path
@@ -449,7 +450,7 @@ correlation_test <- cor.test(bitcoin_negative_log_returns, eth_negative_log_retu
 # Print the result of the correlation test
 print(correlation_test)
 # The p-value is greater than 0.05(= 0.905), you cannot reject the null hypothesis, meaning the series might be independent.
-# So the Bitcoin & Ethereum are apparently not correlated, so these 2 series are independent.
+# So the negative log return of Bitcoin & Ethereum are apparently not correlated, so these 2 series are independent.
 
 ### b
 # Calculate the Cross-Correlation Function (CCF)
@@ -463,14 +464,19 @@ print(ccf_result)
 # This pattern indicates some degree of dependency between the 2 series, ETH potentially driving BTC at certain points.
 
 ### c
+
+# Choose optimal lag length based on criteria
+lag_selection <- VARselect(Crypto_data, lag.max = 20, type = "const")
+print(lag_selection) # order s= 6 based on this
+
 # Granger causality test for Bitcoin predicting ETH
-grangertest(eth_negative_log_returns ~ bitcoin_negative_log_returns, order = 10)
-# The first test gives a p-val very small (0.001<<), so we reject the null hypothesis.
+grangertest(eth_negative_log_returns ~ bitcoin_negative_log_returns, order = 6)
+# The first test gives a p-val very small (0.001<<), so we reject the null hypothesis (H0: no predictive power).
 # There is predictive power in Bitcoin's returns for forecasting Ethereum's returns.
 
 # Granger causality test for ETH predicting Bitcoin
-grangertest(bitcoin_negative_log_returns ~ eth_negative_log_returns, order = 10)
-# The p-val is large (0.81), so we cannot reject the null hypothesis.
+grangertest(bitcoin_negative_log_returns ~ eth_negative_log_returns, order = 6)
+# The p-val is large (0.81), so we cannot reject the null hypothesis (H0: no predictive power).
 # So Ethereum's past returns do not have predictive power for Bitcoin's future returns.
 
 ### d

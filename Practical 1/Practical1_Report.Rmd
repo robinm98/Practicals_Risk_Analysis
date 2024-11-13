@@ -20,6 +20,7 @@ library(fGarch)
 library(lmtest)
 library(ggplot2)
 library(tidyr)
+library(vars)
 
 # Load data using a relative path
 Crypto_data <- read_csv("Data/Crypto_data.csv")
@@ -94,7 +95,34 @@ Overall, the t-GARCH model is the most suitable, effectively handling both the h
 
 # Part 3: Dependence between time series 
 
+## a) Negative Log Returns of Bitcoin and Ethereum Dependence
 
+To assess whether the negative log returns of Bitcoin and Ethereum are dependent, we conducted a correlation test using the cor.test() function. The result of the test showed a p-value of 0.905 (see Table 12), which is much higher than the common significance level of 0.05. Therefore, we fail to reject the null hypothesis. This suggests that there is no significant correlation between the negative log returns of Bitcoin and Ethereum, and we can conclude that the series are likely independent based on the available data.
+
+## b) Cross-Correlation Function (CCF) between Bitcoin and Ethereum
+
+We also examine the potential dependency between the negative log returns of Bitcoin and Ethereum, we calculated the cross-correlation function (CCF). The CCF measures the correlation between two time series at different lags, helping us identify if changes in one series are systematically followed by changes in the other.
+
+The CCF plot (see Figure 19) showed no significant correlation at lag 0, indicating that the two series are not contemporaneously correlated. However, there was a notable spike at lag -5, suggesting a statistically significant correlation where changes in Ethereum's log returns precede changes in Bitcoin's log returns by about 5 periods. This indicates some degree of dependency between the series, with Ethereum potentially influencing Bitcoin at certain points in time based on this CCF analysis.
+
+## c) Granger Causality Test
+
+Based on the Granger causality tests, we assessed whether the negative log returns of Bitcoin and Ethereum have predictive power for one another. Using a lag order of 6 (as determined by the VAR lag selection criteria in Table 13), the results indicate the following:
+
+**Bitcoin predicting Ethereum:** The test yielded a very small p-value (0.001) (see Table 13), leading us to reject the null hypothesis that Bitcoin's past returns have no predictive power for Ethereum. This suggests that Bitcoin's returns can be used to forecast Ethereum's returns.
+
+**Ethereum predicting Bitcoin:** The test yielded a large p-value (0.81) (see Table 14), so we fail to reject the null hypothesis. This indicates that Ethereum's past returns do not provide any predictive power for Bitcoin's future returns.
+
+The Granger causality analysis shows that Bitcoin has predictive power for Ethereum, but not the other way around. This suggests a unidirectional relationship where Bitcoin influences Ethereum, but changes in Ethereum do not predict Bitcoin's returns.
+
+
+## d) Interpretation of Granger Causality Results
+
+Based on the Granger causality results, we can infer the following:
+
+**If Bitcoin experiences a sudden drop:** We would expect Ethereum to also be negatively impacted shortly after. The Granger causality analysis showed that Bitcoin's price movements have predictive power over Ethereum's, meaning a sharp decline in Bitcoin prices is likely to lead to a downturn in Ethereum's prices in the near future.
+
+**If Ethereum experiences a sudden drop:** There is no expectation that Bitcoin will be similarly affected. The lack of Granger causality from Ethereum to Bitcoin suggests that Ethereum's price changes do not significantly predict Bitcoin's movements. Therefore, Bitcoin may not experience a similar drop and could remain stable or be influenced by other unrelated market factors.
 
 # Appendices
 
@@ -402,6 +430,30 @@ qqplot(qt(ppoints(length(garch_t_residuals)), df = df_t),
 qqline(garch_t_residuals, distribution = function(p) qt(p, df = df_t), col = "red")
 ```
 
+#### Figure 19: Cross-Correlation Function (CCF) between Bitcoin and Ethereum
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# We take the concerned column.
+eth_prices <- Crypto_data$Ethereum
+
+# Function to compute negative log returns:
+negative_log_returns <- function(prices) {
+  log_returns <- diff(log(prices))  # Calculate log returns
+  return(-log_returns)  # Return the negative log returns
+}
+
+# Apply the function to the ETH prices
+eth_negative_log_returns <- negative_log_returns(eth_prices)
+
+# Ensure the length of both series is the same by trimming if necessary
+min_length <- min(length(bitcoin_negative_log_returns), length(eth_negative_log_returns))
+bitcoin_negative_log_returns <- bitcoin_negative_log_returns[1:min_length]
+eth_negative_log_returns <- eth_negative_log_returns[1:min_length]
+
+# Calculate the Cross-Correlation Function (CCF)
+ccf_result <- ccf(bitcoin_negative_log_returns, eth_negative_log_returns, plot=TRUE)
+```
+
 ## Results tables
 
 #### Table 1: Augmented Dickey-Fuller Test for Bitcoin Prices
@@ -506,3 +558,30 @@ box_ljung_test <- Box.test(garch_residuals, lag = 20, type = "Ljung-Box")
 print(box_ljung_test)
 
 ```
+#### Table 12: Correlation Test for Bitcoin and Ethereum Negative Log Returns
+
+```{r}
+# Perform the correlation test between Bitcoin and ETH negative log returns
+correlation_test <- cor.test(bitcoin_negative_log_returns, eth_negative_log_returns)
+
+# Print the result of the correlation test
+print(correlation_test)
+```
+#### Table 13: Granger Causality Test: Bitcoin Predicting Ethereum
+
+```{r}
+# Choose optimal lag length based on criteria
+lag_selection <- VARselect(Crypto_data, lag.max = 20, type = "const")
+print(lag_selection) # order s= 6 based on this
+
+# Granger causality test for Bitcoin predicting ETH
+grangertest(eth_negative_log_returns ~ bitcoin_negative_log_returns, order = 6)
+```
+
+#### Table 14: Granger Causality Test: Ethereum Predicting Bitcoin
+
+```{r}
+# Granger causality test for ETH predicting Bitcoin
+grangertest(bitcoin_negative_log_returns ~ eth_negative_log_returns, order = 6)
+```
+
