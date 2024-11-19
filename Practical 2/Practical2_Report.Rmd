@@ -1,0 +1,19 @@
+---
+title: "Risk Analytics - Practical 2"
+subtitle : "Winter semester 2024-2025, HEC, UNIL"
+author: "Robin Michel, Faber Bickerstaffe, Antoine Magnin, Anastasia Pushkarev and Victorien Rodondi"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+
+# Load libraries
+library(readr)
+
+# Load data using a relative path
+gv_temp <- read_csv("Data/Geneva_temperature.csv")
+ls_rain <- read_csv("Data/Precipitation_lausanne_full.csv")
+```
