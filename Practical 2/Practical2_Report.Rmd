@@ -12,8 +12,158 @@ knitr::opts_chunk$set(warning = FALSE)
 
 # Load libraries
 library(readr)
+library(dplyr)
+library(lubridate)
+library(extRemes)
+library(evd)
+library(ismev)
+library(ggplot2)
 
-# Load data using a relative path
+# Read in the data
 gv_temp <- read_csv("Data/Geneva_temperature.csv")
 ls_rain <- read_csv("Data/Precipitation_lausanne_full.csv")
+```
+
+# Part 1: Block maxima approach
+
+### a) Read in the data and plot daily precipitation historgram & b) Extract yearly maxima and plot histogram
+
+```{r, message=FALSE, warning=FALSE, fig.width=8, fig.height=3, fig.align='center'}
+
+# Convert Date column and extract yearly maxima
+ls_rain <- ls_rain %>% mutate(Date = as.Date(Date, format = "%m/%d/%Y"))
+yearly_max <- ls_rain %>%
+  group_by(Year = year(Date)) %>%
+  summarise(Precipitation = max(Precipitation, na.rm = TRUE))
+
+# Combine data into a single data frame
+combined_data <- bind_rows(
+  ls_rain %>% select(Precipitation) %>% mutate(Type = "Daily Precipitation"),
+  yearly_max %>% select(Precipitation) %>% mutate(Type = "Yearly Maxima")
+)
+
+# Plot using ggplot with facet_wrap
+ggplot(combined_data, aes(x = Precipitation)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+  facet_wrap(~Type, scales = "free_y") +
+  labs(title = "Histogram of Precipitation Data", x = "Precipitation (mm)", y = "Frequency") +
+  theme_minimal()
+```
+
+The majority of daily precipitation values are below 10 mm. Extreme precipitation values above 40 mm are rare but present. A Generalized Extreme Value (GEV) distribution may be suitable for the extremes, while a Gamma distribution better fits overall data.
+
+The yearly maxima are right-skewed, with extreme values reaching above 120 mm. This suggests GEV modeling is appropriate for analyzing these extremes.
+
+### c) Fit a linear model to yearly maxima and predict next 10 years
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=4, fig.align='center'}
+# Fit a linear model
+lm_model <- lm(Precipitation ~ Year, data = yearly_max)
+
+# Predict for the next 10 years
+future_years <- data.frame(Year = seq(max(yearly_max$Year) + 1, max(yearly_max$Year) + 10))
+predictions <- predict(lm_model, newdata = future_years, interval = "confidence")
+
+# Combine actual and predicted data for plotting
+combined_years <- c(yearly_max$Year, future_years$Year)
+combined_precipitation <- c(yearly_max$Precipitation, predictions[,1])
+
+# Plot data and predictions
+plot(yearly_max$Year, yearly_max$Precipitation, main = "Predictions for Next 10 Years", 
+     xlab = "Year", ylab = "Precipitation (mm)", pch = 16)
+lines(combined_years, combined_precipitation, col = "blue")
+lines(future_years$Year, predictions[,2], col = "red", lty = 2)  # Lower CI
+lines(future_years$Year, predictions[,3], col = "red", lty = 2)  # Upper CI
+legend("topleft", legend = c("Fitted Line", "Confidence Interval"), col = c("blue", "red"), lty = c(1, 2))
+```
+
+The linear model suggests a steady increase in yearly maximum precipitation. This method sees oversimplify the complexities of extreme precipitation patterns.
+
+### d) Fit GEV models and compare AIC/BIC
+
+```{r}
+# Fit a GEV model with constant parameters
+gev_model_const <- fevd(Precipitation ~ Year, data = yearly_max, type = "GEV")
+
+# Fit a GEV model with time-varying location parameter (linear trend with Year)
+gev_model_time_var <- fevd(Precipitation ~ Year, data = yearly_max, location.fun = ~ Year, type = "GEV")
+
+# Manually calculate AIC for the constant model
+n_params_const <- length(gev_model_const$results$par)  # Number of estimated parameters
+loglik_const <- gev_model_const$results$value           # Negative log-likelihood
+aic_const <- 2 * n_params_const + 2 * loglik_const      # AIC formula
+bic_const <- 2 * loglik_const + log(nrow(yearly_max)) * n_params_const
+
+# Manually calculate AIC + BIC for the time-varying model
+n_params_time_var <- length(gev_model_time_var$results$par)
+loglik_time_var <- gev_model_time_var$results$value
+aic_time_var <- 2 * n_params_time_var + 2 * loglik_time_var
+bic_time_var <- 2 * loglik_time_var + log(nrow(yearly_max)) * n_params_time_var
+
+# Print the AIC and BIC values
+cat("AIC (Constant Parameters):", aic_const, "\n")
+cat("AIC (Time-Varying Location):", aic_time_var, "\n")
+cat("BIC (Constant Parameters):", bic_const, "\n")
+cat("BIC (Time-Varying Location):", bic_time_var, "\n")
+```
+The constant GEV model has slightly lower AIC and BIC values, indicating better fit compared to the time-varying model. Therefore, the constant model is recommended.
+
+### e) Diagnostic plots of GEV fit
+
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=4, fig.align='center'}
+ismev_const <- gev.fit(yearly_max$Precipitation)
+gev.diag(ismev_const)
+```
+Diagnostic plots suggest the model fits the data well, as evidenced by the quantile and return-level plots. Slight deviations at extremes should be noted, as they may affect predictions.
+
+### f) Predict the 10-year return level and plot
+
+```{r, fig.width=6, fig.height=4, fig.align='center'}
+# Calculate 10-year return level
+mu <- ismev_const$mle[1]
+sigma <- ismev_const$mle[2]
+xi <- ismev_const$mle[3]
+T <- 10
+z_T <- mu + (sigma / xi) * ((-log(1 - 1 / T))^(-xi) - 1)
+
+# Plot historical data and return level
+plot(yearly_max$Year, yearly_max$Precipitation, main = "10-Year Return Level Prediction",
+     xlab = "Year", ylab = "Precipitation (mm)", pch = 16, col = "blue")
+abline(h = z_T, col = "red", lty = 2)
+legend("topright", legend = c("Yearly Maxima", "10-Year Return Level"), col = c("blue", "red"), pch = c(16, NA), lty = c(NA, 2))
+```
+
+The 10-year return level is approximately `r round(z_T, 2)` mm. Few historical events exceed this level.
+
+### g) Count exceedances for return levels
+
+```{r}
+# Define return periods
+periods <- c(10, 20, 50, 85)
+return_levels <- sapply(periods, function(T) mu + (sigma / xi) * ((-log(1 - 1 / T))^(-xi) - 1))
+names(return_levels) <- periods
+
+counts_above <- sapply(return_levels, function(level) sum(yearly_max$Precipitation > level))
+
+# Results
+return_levels
+counts_above
+```
+The historical counts above the 10-, 20-, 50-, and 85-year return levels are `r counts_above[1]`, `r counts_above[2]`, `r counts_above[3]`, and `r counts_above[4]` respectively.
+
+### h) Return period for 100 mm of precipitation
+
+```{r}
+threshold <- 100
+return_period_100mm <- 1 / (1 - pgev(threshold, loc = mu, scale = sigma, shape = xi))
+cat("Return period for 100 mm precipitation:", return_period_100mm, "years\n")
+```
+
+### i) Probability of exceeding 150 mm in a given year
+
+```{r}
+threshold_daily <- 150
+prob_exceed_daily <- 1 - pgev(threshold_daily, loc = mu, scale = sigma, shape = xi)
+prob_exceed_annual <- 1 - (1 - prob_exceed_daily)^365
+cat("Probability of exceeding 150 mm in a day at least once in a year:", prob_exceed_annual, "\n")
 ```
