@@ -19,12 +19,12 @@ hist(ls_rain$Precipitation, main="Histogram of Daily Precipitation", xlab="Daily
 # (b) Extract yearly maxima and plot histogram
 
 # Convert the Date column from character to Date format (adjusting for the format)
-ls_rain <- ls_rain |> 
+ls_rain <- ls_rain |>
   mutate(Date = as.Date(Date, format = "%m/%d/%Y"))
 
 # Extract yearly maxima
-yearly_max <- ls_rain |> 
-  group_by(Year = year(Date)) |> 
+yearly_max <- ls_rain |>
+  group_by(Year = year(Date)) |>
   summarise(Precipitation = max(Precipitation, na.rm = TRUE))
 
 # Plot the histogram of yearly maxima
@@ -279,3 +279,96 @@ cat("- Larger variance: Due to fewer data points, the estimates can have larger 
 cat("Preference:\n")
 cat("In most cases, the POT approach is preferred when the goal is to make the best use of available extreme data and the threshold can be selected appropriately. However, if simplicity is desired and the data is naturally segmented into clear blocks, the Block Maxima method may be more suitable.\n")
 
+
+################# Part.3 ######################
+#### (a) Upload the Geneva temperature data. Plot the data. Subset the data for the summer months (June to September) ####
+
+# Load the Geneva temperature data
+data <- read.csv("Practical 2/Data/Geneva_temperature.csv")
+
+# Filter the data for summer months (June to September)
+summer_data <- subset(data, Month >= 6 & Month <= 9)
+
+# Plot the data
+ggplot(data, aes(x = 1:nrow(data), y = AvgTemperature)) +
+  geom_line(alpha = 0.5, color = "blue", linewidth = 1) +
+  geom_line(data = summer_data, aes(x = as.numeric(row.names(summer_data)), y = AvgTemperature),
+            color = "orange", linewidth = 1) +
+  labs(
+    title = "Geneva Temperature Data",
+    x = "Index",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+
+#### (b) Compute the extremal index of the subsetted series with appropriatelly chosen threshold. Do the extremes occur in clusters? ####
+#### What is the probability that if the temperature today is extreme (above the chosen threshold) then tomorrow will be also extreme? ####
+
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Compute the extremal index
+extremal_index <- extremalindex(summer_data$AvgTemperature, threshold = threshold)
+
+# Print the results
+cat("Extremal Index:", extremal_index, "\n")
+
+# Check if extremes occur in clusters
+cat("Do extremes occur in clusters? ", ifelse(extremal_index < 1, "Yes", "No"), "\n")
+
+# Compute the probability that if today's temperature is extreme, tomorrow's is also extreme
+prob_extreme_tomorrow <- extremal_index
+cat("Probability that if today's temperature is extreme, tomorrow's will be also extreme:", prob_extreme_tomorrow, "\n")
+
+#### (c)  Decluster the data using a suitable threshold. Plot the resulting declustered data ####
+
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Decluster the data using the decluster function
+declustered_data <- decluster(summer_data$AvgTemperature, threshold = threshold)
+
+# Create a data frame for plotting (to align with declustered indices)
+declustered_series <- data.frame(
+  Index = seq_along(declustered_data),
+  AvgTemperature = declustered_data
+)
+
+# Plot the original and declustered data
+
+ggplot() +
+  geom_line(data = summer_data, aes(x = 1:nrow(summer_data), y = AvgTemperature),
+            alpha = 0.5, color = "blue", linewidth = 1) +
+  geom_point(data = declustered_series, aes(x = Index, y = AvgTemperature),
+             color = "orange", size = 1.5) +
+  labs(
+    title = "Declustered Geneva Summer Temperature Data",
+    x = "Index",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+
+
+#### (d) Fit a Generalized Pareto Distribution (GPD) to the data, both raw and declustered. Compare the models and compute 10-year return level ####
+
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Fit a GPD to the raw data
+fit_gpd_raw <- fevd(summer_data$AvgTemperature, threshold = threshold, type = "GP", method = "MLE")
+
+# Fit a GPD to the declustered data
+fit_gpd_decl <- fevd(declustered_data, threshold = threshold, type = "GP", method = "MLE")
+
+# Summary of fitted models
+summary(fit_gpd_raw)
+summary(fit_gpd_decl)
+
+# Compute the 10-year return level for both models
+return_period <- 10
+return_level_raw <- return.level(fit_gpd_raw, return.period = return_period)
+return_level_decl <- return.level(fit_gpd_decl, return.period = return_period)
+
+# Print return levels
+cat("10-year Return Level (Raw Data):", return_level_raw, "\n")
+cat("10-year Return Level (Declustered Data):", return_level_decl, "\n")
