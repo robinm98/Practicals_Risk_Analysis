@@ -12,6 +12,10 @@ suicide_attacks <- read.csv("Practical 3/Data/suicide_attacks.csv")
 suicide_attacks <- suicide_attacks %>%
   select(-c(attacker.gender, claim, statistics...wounded_low, statistics...killed_low, statistics...killed_low_civilian, statistics...killed_low_political, statistics...killed_low_security, statistics...female_attackers, statistics...male_attackers, statistics...unknown_attackers))
 
+# Remove rows with negative values in the dataset
+suicide_attacks_cleaned <- suicide_attacks %>%
+  filter(across(where(is.numeric), ~ . >= 0))  # Keep rows where all numeric columns are >= 0
+
 # Remove duplicate rows
 suicide_attacks <- unique(suicide_attacks)
 
@@ -32,5 +36,8 @@ suicide_attacks <- suicide_attacks %>%
          date, 
          date.year:last_col())
 
-View(suicide_attacks)
+# Save the cleaned dataset
+write.csv(suicide_attacks_cleaned, "Practical 3/Data/suicide_attacks_cleaned.csv", row.names = FALSE)
+
+
 
