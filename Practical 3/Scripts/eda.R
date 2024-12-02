@@ -443,7 +443,3 @@ ggplot(top_countries_trend, aes(x = date.year, y = total_casualties, color = tar
     color = "Country"
   ) +
   theme_minimal()
-
-
-
-
