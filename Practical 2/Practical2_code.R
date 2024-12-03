@@ -286,17 +286,28 @@ cat("In most cases, the POT approach is preferred when the goal is to make the b
 # Load the Geneva temperature data
 data <- read.csv("Practical 2/Data/Geneva_temperature.csv")
 
-# Filter the data for summer months (June to September)
-summer_data <- subset(data, Month >= 6 & Month <= 9)
+# Combine "Year" and "Month" into a single "Date" column
+data$Date <- as.Date(paste(data$Year, data$Month, "01", sep = "-"))
 
-# Plot the data
-ggplot(data, aes(x = 1:nrow(data), y = AvgTemperature)) +
-  geom_line(alpha = 0.5, color = "blue", linewidth = 1) +
-  geom_line(data = summer_data, aes(x = as.numeric(row.names(summer_data)), y = AvgTemperature),
-            color = "orange", linewidth = 1) +
+# Plot the temperature data over time
+ggplot(data, aes(x = Date, y = AvgTemperature)) +
+  geom_line(color = "blue", linewidth = 1) +
   labs(
     title = "Geneva Temperature Data",
-    x = "Index",
+    x = "Date",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+
+# Subset the data for summer months (June to September)
+summer_data <- subset(data, Month >= 6 & Month <= 9)
+
+# Plot the summer temperature data
+ggplot(summer_data, aes(x = Date, y = AvgTemperature)) +
+  geom_line(color = "orange", linewidth = 1) +
+  labs(
+    title = "Geneva Summer Temperature Data (June to September)",
+    x = "Date",
     y = "Average Temperature (°C)"
   ) +
   theme_minimal()
