@@ -252,3 +252,136 @@ threshold_daily <- 150
 prob_exceed_daily <- 1 - pgev(threshold_daily, loc = mu, scale = sigma, shape = xi)
 prob_exceed_annual <- 1 - (1 - prob_exceed_daily)^365
 cat("Probability of exceeding", threshold_daily, "casualties in a day at least once in a year:", prob_exceed_annual, "\n")
+
+#### POT - Threshold minimum to define it is an extreme event ####`
+
+# We take the positive values
+data_extremes <- suicide_attacks_casualties$total_casualties
+
+# We trace the Mean Residual Life Plot
+thresholds <- seq(quantile(data_extremes, 0.85), quantile(data_extremes, 0.99), length.out = 50)
+mean_excess <- sapply(thresholds, function(u) {
+  excesses <- data_extremes[data_extremes > u] - u
+  mean(excesses, na.rm = TRUE)
+})
+
+mrl_plot <- data.frame(thresholds, mean_excess)
+ggplot(mrl_plot, aes(x = thresholds, y = mean_excess)) +
+  geom_line(color = "blue") +
+  geom_point(color = "red") +
+  labs(
+    title = "Mean Residual Life Plot",
+    x = "Threshold",
+    y = "Mean Excess"
+  ) +
+  theme_minimal()
+## A linearity area seems to be reached between 100-150, which is a candidate. If the slope is too weak, we could lose some info.
+## It is possible to modelize the events above the thresholds with GPD (Generalized Pareto Distribution).
+
+# Adjust a model GPD for different thresholds.
+thresholds_gpd <- seq(quantile(data_extremes, 0.9), quantile(data_extremes, 0.99), length.out = 10)
+gpd_params <- lapply(thresholds_gpd, function(thresh) {
+  excesses <- data_extremes[data_extremes > thresh] - thresh
+  if (length(excesses) > 10) {
+    gpd_fit <- fpot(excesses, threshold = 0)
+    return(gpd_fit$estimate)
+  } else {
+    return(NULL)
+  }
+})
+
+# Extract the parameters Shape et Scale for each threshold
+shape_params <- sapply(gpd_params, function(params) if (!is.null(params)) params["shape"] else NA)
+scale_params <- sapply(gpd_params, function(params) if (!is.null(params)) params["scale"] else NA)
+
+# Trace the stability of the parameters
+param_data <- data.frame(
+  Threshold = thresholds_gpd,
+  Shape = shape_params,
+  Scale = scale_params
+)
+
+ggplot(param_data, aes(x = Threshold)) +
+  geom_line(aes(y = Shape), color = "blue") +
+  geom_point(aes(y = Shape), color = "red") +
+  labs(
+    title = "Stability of Shape Parameter",
+    x = "Threshold",
+    y = "Shape Parameter"
+  ) +
+  theme_minimal()
+
+ggplot(param_data, aes(x = Threshold)) +
+  geom_line(aes(y = Scale), color = "green") +
+  geom_point(aes(y = Scale), color = "red") +
+  labs(
+    title = "Stability of Scale Parameter",
+    x = "Threshold",
+    y = "Scale Parameter"
+  ) +
+  theme_minimal()
+
+# Determine the optimal threshold
+## For the shape, the parameter seems to be stable between 100-150. Above 200, it becomes unstable.
+## This parameter determine the probability of exterme events. It is predictable in this area of 100-150 casualties.
+## For the scale, same between 100-150, above 200, it becomes unstable.
+## Mean Amplitude of excesses above the threshold. Between 100-150, possible to predict this amplitude. Above, not enough data to be precise.
+
+# Extract the excesses above the threshold
+threshold <- 120
+data_extremes <- suicide_attacks$total_casualties
+excesses <- data_extremes[data_extremes > threshold] - threshold  # Excès au-dessus du seuil
+
+# Aajust a GPD distribution to the excesses.
+gpd_fit <- fpot(excesses, threshold = 0)  # Ajustement du modèle GPD
+summary(gpd_fit)  # Résumé des paramètres ajustés
+
+# Extract the estimated parameters of GPD
+shape_param <- gpd_fit$estimate["shape"]  # ξ (shape parameter)
+scale_param <- gpd_fit$estimate["scale"]  # 𝜎 (scale parameter)
+
+# Estimating extremes quantiles
+# Probabilities for quantiles
+probabilities <- c(0.95, 0.99)
+
+# Function to calculate the quantiles based on GPD
+gpd_quantiles <- function(p, threshold, shape, scale, n_excess, total_n) {
+  lambda <- n_excess / total_n  # Proportion of events above the threshold
+  quantile <- threshold + (scale / shape) * (((1 - p) / lambda)^(-shape) - 1)
+  return(quantile)
+}
+
+# Calcul of quantiles for the specified probabilities
+n_excess <- length(excesses)  # Number of excesses above the threshold
+total_n <- length(data_extremes)  # Total number of events
+quantiles <- sapply(probabilities, function(p) {
+  gpd_quantiles(p, threshold, shape_param, scale_param, n_excess, total_n)
+})
+names(quantiles) <- paste0(probabilities * 100, "%")
+print(quantiles)
+
+# Analysis of the frequency & evaluation of total risk
+# Estimate the occurence of excesses
+frequency <- n_excess / total_n
+print(paste("Frequence of occurence of the excesses (threshold =", threshold, "):", frequency))
+
+# Combiner the frequence and the excesses to evaluate total risk
+expected_excess <- mean(excesses)  # Mean of the excesses
+total_risk <- frequency * (threshold + expected_excess)  # Total risk estimated
+print(paste("Risque total estimé :", total_risk))
+
+# Visualisation of excesses with the adjusted GPD
+ggplot(data.frame(excesses), aes(x = excesses)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.7) +
+  stat_function(fun = function(x) {
+    dgpd(x, loc = 0, scale = scale_param, shape = shape_param)
+  }, color = "red", size = 1) +
+  labs(
+    title = "Ajustement of the GPD to excesses",
+    x = "Excesses (above threshold)",
+    y = "Density"
+  ) +
+  theme_minimal()
+## Quantiles extraction : 95% : 226.83 (120+106.83), 99% : 366.34 as a probability of losses
+## Frequency of occurence for exterme events at 120 : 4.1%
+## Freq * (Threshold + Mean excess) = 10.49 additional casualties for events > 120.
