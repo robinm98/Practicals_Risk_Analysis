@@ -18,10 +18,12 @@ library(extRemes)
 library(evd)
 library(ismev)
 library(ggplot2)
+library(POT)
 
 # Read in the data
 gv_temp <- read_csv("Data/Geneva_temperature.csv")
 ls_rain <- read_csv("Data/Precipitation_lausanne_full.csv")
+data <- read.csv("Practical 2/Data/Geneva_temperature.csv")
 ```
 
 # Part 1: Block maxima approach
@@ -167,3 +169,123 @@ prob_exceed_daily <- 1 - pgev(threshold_daily, loc = mu, scale = sigma, shape = 
 prob_exceed_annual <- 1 - (1 - prob_exceed_daily)^365
 cat("Probability of exceeding 150 mm in a day at least once in a year:", prob_exceed_annual, "\n")
 ```
+
+# Part 3: Clustering and Seasonal Variations
+
+### a)  Upload the Geneva temperature data. Plot the data. Subset the data for the summer months (June to September).
+
+```{r}
+# Combine "Year" and "Month" into a single "Date" column
+data$Date <- as.Date(paste(data$Year, data$Month, "01", sep = "-"))
+
+# Plot the temperature data over time
+ggplot(data, aes(x = Date, y = AvgTemperature)) +
+  geom_line(color = "blue", linewidth = 1) +
+  labs(
+    title = "Geneva Temperature Data",
+    x = "Date",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+
+# Subset the data for summer months (June to September)
+summer_data <- subset(data, Month >= 6 & Month <= 9)
+
+# Plot the summer temperature data
+ggplot(summer_data, aes(x = Date, y = AvgTemperature)) +
+  geom_line(color = "orange", linewidth = 1) +
+  labs(
+    title = "Geneva Summer Temperature Data (June to September)",
+    x = "Date",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+```
+
+This first graph shows the average monthly temperature in Geneva over the years. The temperatures highlight seasonal fluctuations and year-to-year variations.
+
+The second graph shows the average monthly temperature in Geneva from June to September over the years. We can see the trend in the fluctuation for each month.
+
+### b) Compute the extremal index of the subsetted series with appropriatelly chosen threshold. Do the extremes occur in clusters? What is the probability that if the temperature today is extreme (above the chosen threshold) then tomorrow will be also extreme? 
+
+```{r}
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Compute the extremal index
+extremal_index <- extremalindex(summer_data$AvgTemperature, threshold = threshold)
+
+# Print the results
+cat("Extremal Index:", extremal_index, "\n")
+
+# Check if extremes occur in clusters
+cat("Do extremes occur in clusters? ", ifelse(extremal_index < 1, "Yes", "No"), "\n")
+
+# Compute the probability that if today's temperature is extreme, tomorrow's is also extreme
+prob_extreme_tomorrow <- extremal_index
+cat("Probability that if today's temperature is extreme, tomorrow's will be also extreme:", prob_extreme_tomorrow, "\n")
+```
+
+The threshold for extreme temperatures is set at the 95th percentile of the data, and the extremal index is computed, which quantifies how extremes are distributed—values below 1 suggest clustering, meaning extremes are likely to occur in groups. Additionally, the extremal index is interpreted as the probability that if today's temperature is extreme, tomorrow's will also be extreme, with a value of 0.2612517 in this case.
+
+### c) Decluster the data using a suitable threshold. Plot the resulting declustered data.
+
+```{r}
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Decluster the data using the decluster function
+declustered_data <- decluster(summer_data$AvgTemperature, threshold = threshold)
+
+# Create a data frame for plotting (to align with declustered indices)
+declustered_series <- data.frame(
+  Index = seq_along(declustered_data),
+  AvgTemperature = declustered_data
+)
+
+# Plot the original and declustered data
+
+ggplot() +
+  geom_line(data = summer_data, aes(x = 1:nrow(summer_data), y = AvgTemperature),
+            alpha = 0.5, color = "blue", linewidth = 1) +
+  geom_point(data = declustered_series, aes(x = Index, y = AvgTemperature),
+             color = "orange", size = 1.5) +
+  labs(
+    title = "Declustered Geneva Summer Temperature Data",
+    x = "Index",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+```
+
+We applied a threshold at the 95th percentile to identify independent extreme events and removed clusters of extremes. The resulting declustered data is plotted alongside the original data, showing how extreme temperatures are isolated after declustering.
+
+The graph displays the original Geneva summer temperature series as a blue line, with declustered extreme temperatures highlighted as orange dots. The declustered points represent independent extreme events that surpass the threshold.
+
+### d) Fit a Generalized Pareto Distribution (GPD) to the data, both raw and declustered. Compare the models and compute 10-year return level.
+
+```{r}
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Fit a GPD to the raw data
+fit_gpd_raw <- fevd(summer_data$AvgTemperature, threshold = threshold, type = "GP", method = "MLE")
+
+# Fit a GPD to the declustered data
+fit_gpd_decl <- fevd(declustered_data, threshold = threshold, type = "GP", method = "MLE")
+
+# Summary of fitted models
+summary(fit_gpd_raw)
+summary(fit_gpd_decl)
+
+# Compute the 10-year return level for both models
+return_period <- 10
+return_level_raw <- return.level(fit_gpd_raw, return.period = return_period)
+return_level_decl <- return.level(fit_gpd_decl, return.period = return_period)
+
+# Print return levels
+cat("10-year Return Level (Raw Data):", return_level_raw, "\n")
+cat("10-year Return Level (Declustered Data):", return_level_decl, "\n")
+```
+
+The results show that the raw data model has slightly higher scale and shape parameter estimates compared to the declustered model, leading to a 10-year return level of 29.32°C for the raw data and 29.19°C for the declustered data. The declustering reduces clustering bias in extremes, resulting in a slightly more conservative estimate of extreme temperature levels. The AIC and BIC values also confirm better fit for the declustered model, indicating improved reliability for return level predictions.

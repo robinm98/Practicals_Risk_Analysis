@@ -12,6 +12,7 @@ library(POT)
 # (a) Load data using a relative paths and plotting
 gv_temp <- read_csv("Practical 2/Data/Geneva_temperature.csv")
 ls_rain <- read_csv("Practical 2/Data/Precipitation_lausanne_full.csv")
+data <- read.csv("Practical 2/Data/Geneva_temperature.csv")
 
 # Plot histogram of daily precipitation frequency
 hist(ls_rain$Precipitation, main="Histogram of Daily Precipitation", xlab="Daily Precipitation (mm)")
@@ -282,9 +283,6 @@ cat("In most cases, the POT approach is preferred when the goal is to make the b
 
 ################# Part.3 ######################
 #### (a) Upload the Geneva temperature data. Plot the data. Subset the data for the summer months (June to September) ####
-
-# Load the Geneva temperature data
-data <- read.csv("Practical 2/Data/Geneva_temperature.csv")
 
 # Combine "Year" and "Month" into a single "Date" column
 data$Date <- as.Date(paste(data$Year, data$Month, "01", sep = "-"))
