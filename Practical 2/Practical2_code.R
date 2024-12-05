@@ -184,11 +184,11 @@ ggplot(data = ls_rain, aes(x = Date, y = Precipitation)) +
 #### (c) Fit a GPD for Data Exceeding Threshold ####
 
 # Fit a Generalized Pareto Distribution (GPD) for data exceeding the threshold
-gpd_fit <- fitgpd(ls_rain$Precipitation, threshold = threshold, method = "mle")
+gpd_fit <- fpot(ls_rain$Precipitation, threshold = threshold, method = "Nelder-Mead")
 
 # Diagnostic plot for GPD fit
 par(mfrow = c(2, 2))
-plot(gpd_fit, main = "GPD Diagnostic Plots for Exceedances over Threshold")
+plot(gpd_fit)
 
 # Based on the diagnostic plots, the GPD model appears to be a reasonable fit. The QQ plot shows that most points lie along the 45-degree line, indicating a good fit. The return level plot also shows consistency between the model and empirical data. If significant deviations were present, we would reconsider the choice of the threshold.
 
