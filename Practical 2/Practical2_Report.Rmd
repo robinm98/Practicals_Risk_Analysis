@@ -3,7 +3,11 @@ title: "Risk Analytics - Practical 2"
 subtitle : "Winter semester 2024-2025, HEC, UNIL"
 author: "Robin Michel, Faber Bickerstaffe, Antoine Magnin, Anastasia Pushkarev and Victorien Rodondi"
 date: "`r Sys.Date()`"
-output: pdf_document
+output: 
+  pdf_document:
+    fig_width: 6
+    fig_height: 4
+geometry: margin=0.5in
 ---
 
 ```{r setup, include=FALSE}
@@ -23,14 +27,13 @@ library(POT)
 # Read in the data
 gv_temp <- read_csv("Data/Geneva_temperature.csv")
 ls_rain <- read_csv("Data/Precipitation_lausanne_full.csv")
-data <- read.csv("Practical 2/Data/Geneva_temperature.csv")
 ```
 
 # Part 1: Block maxima approach
 
 ### a) Read in the data and plot daily precipitation historgram & b) Extract yearly maxima and plot histogram
 
-```{r, message=FALSE, warning=FALSE, fig.width=8, fig.height=3, fig.align='center'}
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=2, fig.align='center'}
 
 # Convert Date column and extract yearly maxima
 ls_rain <- ls_rain %>% mutate(Date = as.Date(Date, format = "%m/%d/%Y"))
@@ -112,8 +115,11 @@ The constant GEV model has slightly lower AIC and BIC values, indicating better 
 
 ### e) Diagnostic plots of GEV fit
 
-```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=4, fig.align='center'}
+```{r, message=FALSE, warning=FALSE, results=FALSE}
 ismev_const <- gev.fit(yearly_max$Precipitation)
+```
+
+```{r, fig.width=6, fig.height=4, fig.align='center'}
 gev.diag(ismev_const)
 ```
 Diagnostic plots suggest the model fits the data well, as evidenced by the quantile and return-level plots. Slight deviations at extremes should be noted, as they may affect predictions.
@@ -174,7 +180,7 @@ cat("Probability of exceeding 150 mm in a day at least once in a year:", prob_ex
 
 ### a) Time series plot of daily precipitation
 
-```{r, fig.width=8, fig.height=4, fig.align='center'}
+```{r, fig.width=6, fig.height=4, fig.align='center'}
 # Time series plot
 ggplot(data = ls_rain, aes(x = Date, y = Precipitation)) +
   geom_line(color = "blue") +
@@ -183,8 +189,6 @@ ggplot(data = ls_rain, aes(x = Date, y = Precipitation)) +
        y = "Daily Precipitation (mm)") +
   theme_minimal()
 ```
-
----
 
 ### b) Mean Residual Life Plot and Threshold Selection
 
@@ -197,11 +201,9 @@ mrlplot(ls_rain$Precipitation, main = "Mean Residual Life Plot for Daily Precipi
 threshold <- 30
 ```
 
----
-
 ### c) Fit a Generalized Pareto Distribution (GPD) and the data exceeding the threshold 
 
-```{r, fig.width=8, fig.height=6, fig.align='center'}
+```{r, fig.width=6, fig.height=4, fig.align='center'}
 # Highlight data exceeding threshold
 ggplot(data = ls_rain, aes(x = Date, y = Precipitation)) +
   geom_line(color = "blue") +
@@ -220,8 +222,6 @@ gpd_fit <- fpot(ls_rain$Precipitation, threshold = threshold, method = "Nelder-M
 par(mfrow = c(2, 2))
 plot(gpd_fit)
 ```
-
----
 
 ### d) Return Levels for Different Periods
 
@@ -253,8 +253,6 @@ cat("Return levels for specified return periods (in mm):\n")
 return_levels
 ```
 
----
-
 ### e) Return Period for 100 mm Precipitation
 
 ```{r}
@@ -266,8 +264,6 @@ if (shape != 0) {
 
 cat("Return period for 100 mm precipitation:", return_period_100, "years\n")
 ```
-
----
 
 ### f) Probability of Exceeding 150 mm in a Given Year
 
@@ -282,8 +278,6 @@ prob_exceed_daily <- 1 - pgev(precipitation_150, loc = threshold_gpd, scale = sc
 prob_exceed_annual <- 1 - (1 - prob_exceed_daily)^365
 cat("Probability of exceeding 150 mm at least once in a year:", prob_exceed_annual, "\n")
 ```
-
----
 
 ### g) Comparison of POT and Block Maxima Methods
 
@@ -314,10 +308,10 @@ The POT method is generally preferred when the objective is to make full use of 
 
 ```{r}
 # Combine "Year" and "Month" into a single "Date" column
-data$Date <- as.Date(paste(data$Year, data$Month, "01", sep = "-"))
+gv_temp$Date <- as.Date(paste(gv_temp$Year, gv_temp$Month, "01", sep = "-"))
 
 # Plot the temperature data over time
-ggplot(data, aes(x = Date, y = AvgTemperature)) +
+ggplot(gv_temp, aes(x = Date, y = AvgTemperature)) +
   geom_line(color = "blue", linewidth = 1) +
   labs(
     title = "Geneva Temperature Data",
@@ -327,7 +321,7 @@ ggplot(data, aes(x = Date, y = AvgTemperature)) +
   theme_minimal()
 
 # Subset the data for summer months (June to September)
-summer_data <- subset(data, Month >= 6 & Month <= 9)
+summer_data <- subset(gv_temp, Month >= 6 & Month <= 9)
 
 # Plot the summer temperature data
 ggplot(summer_data, aes(x = Date, y = AvgTemperature)) +
