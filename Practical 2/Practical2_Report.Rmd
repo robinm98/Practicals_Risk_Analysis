@@ -178,7 +178,7 @@ cat("Probability of exceeding 150 mm in a day at least once in a year:", prob_ex
 
 # Part 2: Peaks-Over-Threshold Approach
 
-### a) Time series plot of daily precipitation & b) Mean Residual Life Plot and Threshold Selection
+### a) Time series plot of daily precipitation
 
 ```{r, fig.width=6, fig.height=4, fig.align='center'}
 # Time series plot
