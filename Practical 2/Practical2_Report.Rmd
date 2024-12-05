@@ -61,7 +61,7 @@ The yearly maxima are right-skewed, with extreme values reaching above 120 mm. T
 
 ### c) Fit a linear model to yearly maxima and predict next 10 years
 
-```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=4, fig.align='center'}
+```{r, message=FALSE, warning=FALSE, fig.width=6, fig.height=2, fig.align='center'}
 # Fit a linear model
 lm_model <- lm(Precipitation ~ Year, data = yearly_max)
 
@@ -119,7 +119,7 @@ The constant GEV model has slightly lower AIC and BIC values, indicating better 
 ismev_const <- gev.fit(yearly_max$Precipitation)
 ```
 
-```{r, fig.width=6, fig.height=4, fig.align='center'}
+```{r, fig.width=6, fig.height=3, fig.align='center'}
 gev.diag(ismev_const)
 ```
 Diagnostic plots suggest the model fits the data well, as evidenced by the quantile and return-level plots. Slight deviations at extremes should be noted, as they may affect predictions.
@@ -178,7 +178,7 @@ cat("Probability of exceeding 150 mm in a day at least once in a year:", prob_ex
 
 # Part 2: Peaks-Over-Threshold Approach
 
-### a) Time series plot of daily precipitation
+### a) Time series plot of daily precipitation & b) Mean Residual Life Plot and Threshold Selection
 
 ```{r, fig.width=6, fig.height=4, fig.align='center'}
 # Time series plot
