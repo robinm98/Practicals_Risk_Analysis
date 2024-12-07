@@ -234,15 +234,15 @@ ggplot(attackers_distribution, aes(x = reorder(attackers, -count), y = count)) +
 ### Group by date
 
 ## Casualties
-# Calculate total casualties for each date and select the top 10
+# Calculate total casualties for each year and select the top 10
 top_dates_casualties <- suicide_attacks %>%
-  group_by(date) %>%
+  group_by(date.year) %>%
   summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
   arrange(desc(total_casualties)) %>%
   slice_head(n = 10)
 
 # Bar chart for the top 10 dates with highest casualties
-ggplot(top_dates_casualties, aes(x = reorder(date, -total_casualties), y = total_casualties)) +
+ggplot(top_dates_casualties, aes(x = reorder(date.year, -total_casualties), y = total_casualties)) +
   geom_bar(stat = "identity") +
   coord_flip() +
   labs(
@@ -253,19 +253,19 @@ ggplot(top_dates_casualties, aes(x = reorder(date, -total_casualties), y = total
   theme_minimal()
 
 ## Distributions
-# Count occurrences for each date
+# Count occurrences for each year
 top_dates <- suicide_attacks %>%
-  group_by(date) %>%
+  group_by(date.year) %>%
   summarise(count = n()) %>%
   arrange(desc(count)) %>%
   slice_head(n = 10)
 
 # Bar chart for the top 10 dates
-ggplot(top_dates, aes(x = reorder(date, -count), y = count)) +
+ggplot(top_dates, aes(x = reorder(date.year, -count), y = count)) +
   geom_bar(stat = "identity") +
   coord_flip() +
   labs(
-    title = "Top 10 Dates with Highest Occurrences",
+    title = "Top 10 Years with Highest Occurrences",
     x = "Dates",
     y = "Count"
   ) +
