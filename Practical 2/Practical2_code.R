@@ -151,7 +151,6 @@ prob_exceed_daily <- 1 - pgev(threshold_daily, loc = mu, scale = sigma, shape = 
 prob_exceed_annual <- 1 - (1 - prob_exceed_daily)^365
 cat("Probability of exceeding 150 mm in a day at least once in a year:", prob_exceed_annual, "\n")
 
-
 ################# Part.2 ######################
 
 #### (a) Time series plot of the daily precipitation ####
