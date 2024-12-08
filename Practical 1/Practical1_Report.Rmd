@@ -44,9 +44,9 @@ To formally test for normality, we applied the Anderson-Darling test (see Table 
 
 ### d) and e) Fitting a t-Distribution and Comparing Tails
 
-Since the negative log returns deviate from normality, particularly in the extremes, we fit a t-distribution to the scaled data to check if it better captures these extreme values. A QQ-plot was generated to compare the negative log returns with the theoretical t-distribution (see Figure 6), which showed that the data fits the t-distribution quite well, including in the tails. For comparison, we also generated a QQ-plot for the normal distribution (see Figure 5), which demonstrated a poorer fit, particularly for extreme values. This suggests that the t-distribution, with its ability to model heavy tails, is a more appropriate fit for the data (see Figure 8).
+Since the negative log returns deviate from normality, particularly in the extremes, we fit a t-distribution to the scaled data to check if it better captures these extreme values. A QQ-plot was generated to compare the negative log returns with the theoretical t-distribution (see Figure 6), which showed that the data fits the t-distribution quite well, including in the tails. This suggests that the t-distribution, with its ability to model heavy tails, is a more appropriate fit for the data (see Figure 7).
 
-Next, we compared the density plots of the normal and t-distributions. As expected, the t-distribution exhibited heavier tails than the normal distribution, meaning we should expect more extreme, unexpected events in a t-distribution (see Figure 9).
+Next, we compared the density plots of the normal and t-distributions. As expected, the t-distribution exhibited heavier tails than the normal distribution, meaning we should expect more extreme, unexpected events in a t-distribution (see Figure 8).
 
 Since the Bitcoin data follows the t-distribution more closely, and the t-distribution has fatter tails than the normal distribution, this indicates that extreme values (large deviations from the mean) are more likely in the Bitcoin data than if it were normally distributed.
 
