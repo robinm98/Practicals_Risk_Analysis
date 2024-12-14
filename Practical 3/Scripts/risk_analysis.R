@@ -385,3 +385,74 @@ ggplot(data.frame(excesses), aes(x = excesses)) +
 ## Quantiles extraction : 95% : 226.83 (120+106.83), 99% : 366.34 as a probability of losses
 ## Frequency of occurence for exterme events at 120 : 4.1%
 ## Freq * (Threshold + Mean excess) = 10.49 additional casualties for events > 120.
+
+
+-----
+
+# Definition of a threshold for extreme values (95th percentile)
+threshold <- quantile(suicide_attacks$total_casualties, 0.95, na.rm = TRUE)
+
+# Computation of the extremal index for the entire time series
+extremal_index <- extremalindex(suicide_attacks$total_casualties, threshold = threshold)
+cat("Extremal Index:", extremal_index, "\n")
+cat("Do extremes occur in clusters? ", ifelse(extremal_index < 1, "Yes", "No"), "\n")
+
+## Extremal Index: 0.7219596 272 4 
+
+## Do extremes occur in clusters?  Yes No No 
+
+# Probability of extreme event tomorrow given today's is extreme
+prob_extreme_tomorrow <- extremal_index
+cat("Probability that if today's total casualties are extreme, tomorrow's will also be extreme:", prob_extreme_tomorrow, "\n")
+
+## Probability that if today's total casualties are extreme, tomorrow's will also be extreme: 0.7219596 272 4 
+
+# Declusterization of the data using the defined threshold
+declustered_data <- decluster(suicide_attacks$total_casualties, threshold = threshold)
+
+# Plotting the original and declustered data
+ggplot() +
+  geom_line(data = suicide_attacks, aes(x = 1:nrow(suicide_attacks), y = total_casualties),
+            alpha = 0.5, color = "blue", linewidth = 1) +
+  geom_point(data = data.frame(Index = seq_along(declustered_data), Declustered = declustered_data), 
+             aes(x = Index, y = Declustered), color = "orange", size = 1.5) +
+  labs(
+    title = "Declustered Suicide Attacks Data",
+    x = "Index",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+# Fittig a Generalized Pareto Distribution (GPD) to the raw and declustered data
+fit_gpd_raw <- fevd(suicide_attacks$total_casualties, threshold = threshold, type = "GP", method = "MLE")
+fit_gpd_decl <- fevd(declustered_data, threshold = threshold, type = "GP", method = "MLE")
+
+## Summarizing the fitted models
+summary(fit_gpd_raw)
+
+## Negative Log-Likelihood Value:  2120.065 
+##  AIC = 4244.13 ; BIC = 4252.032 
+
+summary(fit_gpd_decl)
+
+# Negative Log-Likelihood Value:  1715.796 
+#  AIC = 3435.592 ; BIC = 3443.033 
+
+## We can clearly see that the model with the lowest AIC and BIC values is the one with declustered data
+## and among competing models is preferred.
+
+# Compute 10-year return level
+return_period <- 10
+return_level_raw <- return.level(fit_gpd_raw, return.period = return_period)
+return_level_decl <- return.level(fit_gpd_decl, return.period = return_period)
+
+cat("10-year Return Level (Raw Data):", return_level_raw, "\n")
+
+## 10-year Return Level (Raw Data): 1097.025 
+## An event with 1097 casualties or more is expected to occur, on average, once every 10 years
+
+cat("10-year Return Level (Declustered Data):", return_level_decl, "\n")
+
+## 10-year Return Level (Declustered Data): 1148.892 
+## An event with 1148 casualties or more is expected to occur, on average, once every 10 years
+
