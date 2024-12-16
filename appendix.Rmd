@@ -1,0 +1,2361 @@
+---
+title: "Appendix - Practical 1, 2, & 3"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+
+# Load libraries
+library(readr)
+library(tseries)
+library(nortest)
+library(MASS)
+library(fpp2)
+library(fGarch)
+library(lmtest)
+library(ggplot2)
+library(tidyr)
+library(vars)
+
+# Load data using a relative path
+Crypto_data <- read_csv("Practical 1/Data/Crypto_data.csv")
+```
+
+# Practical 1
+
+## Figures
+
+#### Figure 1: Bitcoin Prices and Negative Log Returns Over Time on Common Scale
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Extract Bitcoin prices 
+bitcoin_prices <- Crypto_data[[1]] # or Crypto_data$Bitcoin
+
+# Create a function to compute negative log returns
+negative_log_returns <- function(prices) {
+  # Calculate log returns
+  log_returns <- diff(log(prices))
+  # Return the negative of the log returns
+  return(-log_returns)
+}
+
+# Apply the function to the Bitcoin prices
+bitcoin_negative_log_returns <- negative_log_returns(bitcoin_prices)
+
+# Scale the negative log returns
+bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
+
+# Fit a t-distribution to the negative log returns
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+# Recalculate degrees of freedom within the same chunk
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+df <- t_fit$estimate["df"]
+
+# Standardize both series (subtract mean, divide by standard deviation)
+bitcoin_prices_standardized <- scale(bitcoin_prices)
+bitcoin_negative_log_returns_standardized <- scale(bitcoin_negative_log_returns)
+
+# Create a data frame combining both series for plotting
+bitcoin_data_standardized <- data.frame(
+  Time = 1:length(bitcoin_prices_standardized),
+  Bitcoin_Prices_Standardized = bitcoin_prices_standardized,
+  Negative_Log_Returns_Standardized = c(NA, bitcoin_negative_log_returns_standardized)  # Add NA to align lengths
+)
+
+# Reshape the data for ggplot
+bitcoin_data_long_standardized <- pivot_longer(bitcoin_data_standardized, 
+                                               cols = c(Bitcoin_Prices_Standardized, Negative_Log_Returns_Standardized), 
+                                               names_to = "Series", values_to = "Values")
+
+# Plot the standardized series on a common scale, ensuring raw prices are drawn last (on top)
+ggplot() +
+  geom_line(data = subset(bitcoin_data_long_standardized, Series == "Negative_Log_Returns_Standardized"), 
+            aes(x = Time, y = Values, color = Series), size = 0.5) +  
+  geom_line(data = subset(bitcoin_data_long_standardized, Series == "Bitcoin_Prices_Standardized"), 
+            aes(x = Time, y = Values, color = Series), size = 0.5) +  
+  labs(title = "Comparison of Standardized Bitcoin Prices and Negative Log Returns",
+       x = "Time", y = "Standardized Values") +
+  scale_color_manual(values = c("Bitcoin_Prices_Standardized" = "blue", 
+                                "Negative_Log_Returns_Standardized" = "red"),
+                     labels = c("Prices", "Log Returns")) +  # Shortened labels
+  theme_minimal()
+```
+
+
+#### Figure 2: Bitcoin Prices Over Time
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Extract Bitcoin prices 
+bitcoin_prices <- Crypto_data[[1]] # or Crypto_data$Bitcoin
+
+# Plot the Bitcoin prices to visually inspect stationarity
+plot(bitcoin_prices, type = "l", main = "Bitcoin Prices", xlab = "Time", ylab = "Price")
+```
+
+#### Figure 3: Negative Log Returns of Bitcoin Over Time
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Create a function to compute negative log returns
+negative_log_returns <- function(prices) {
+  # Calculate log returns
+  log_returns <- diff(log(prices))
+  # Return the negative of the log returns
+  return(-log_returns)
+}
+
+# Apply the function to the Bitcoin prices
+bitcoin_negative_log_returns <- negative_log_returns(bitcoin_prices)
+
+# Plot the negative log returns
+plot(bitcoin_negative_log_returns, type = "l", main = "Negative Log Returns of Bitcoin", xlab = "Time", ylab = "Negative Log Returns")
+```
+
+
+#### Figure 4: Histogram of Negative Log Returns
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Draw a histogram of the negative log returns
+hist(bitcoin_negative_log_returns, breaks = 30, main = "Histogram of Negative Log Returns", xlab = "Negative Log Returns", col = "lightblue", border = "black")
+# --> seems normally distributed
+```
+
+#### Figure 5: QQ-Plot of Negative Log Returns
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Create a QQ-plot to check normality
+qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns vs. Normal Distribution")
+qqline(bitcoin_negative_log_returns, col = "red") # --> normally distributed only for non-extreme values
+```
+
+#### Figure 6: QQ-Plot of Negative Log Returns with t-Distribution
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+### QQ-plot for t-distribution : seem to follow it quite well
+# Generate a QQ-plot for the t-distribution fit
+qqplot(qt(ppoints(length(bitcoin_negative_log_returns)), df = df_value), 
+       bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns vs t-Distribution",
+       xlab = "Theoretical Quantiles (t-distribution)", ylab = "Sample Quantiles")
+# Add a 45-degree line to the QQ-plot
+qqline(bitcoin_negative_log_returns, distribution = function(p) qt(p, df = df_value), col = "red")
+```
+
+#### Figure 7: Histogram of Bitcoin Negative Log Returns with Fitted t and Normal Distribution
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Scale the negative log returns
+bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
+
+# Fit a t-distribution to the negative log returns
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+# Recalculate degrees of freedom within the same chunk
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+df <- t_fit$estimate["df"]
+
+# Extract the fitted parameters from t_fit
+m <- t_fit$estimate["m"]      # Mean (location parameter)
+s <- t_fit$estimate["s"]      # Scale (related to standard deviation)
+df <- t_fit$estimate["df"]    # Degrees of freedom
+
+# Calculate the mean and standard deviation for the normal distribution
+mean_normal <- mean(bitcoin_negative_log_returns_scaled)
+sd_normal <- sd(bitcoin_negative_log_returns_scaled)
+
+# Plot the histogram of your data
+hist(bitcoin_negative_log_returns_scaled, breaks = 30, probability = TRUE, 
+     main = "Histogram of Bitcoin Neg. Log Ret. with Fitted t and Normal Distribution",
+     xlab = "Negative Log Returns", col = "lightblue", border = "black")
+
+# Overlay the density of the fitted t-distribution
+x_vals <- seq(min(bitcoin_negative_log_returns_scaled), max(bitcoin_negative_log_returns_scaled), length.out = 1000)
+t_density <- dt((x_vals - m) / s, df) / s  # Density of the t-distribution with fitted parameters
+
+# Add the t-distribution curve to the plot
+lines(x_vals, t_density, col = "red", lwd = 2)
+
+# Overlay the density of the normal distribution
+normal_density <- dnorm(x_vals, mean = mean_normal, sd = sd_normal)
+
+# Add the normal distribution curve to the plot
+lines(x_vals, normal_density, col = "blue", lwd = 2)
+
+# Add a legend to distinguish between t-distribution and normal distribution
+legend("topright", legend = c("Fitted t-Distribution", "Normal Distribution"), 
+       col = c("red", "blue"), lwd = 2)
+```
+
+#### Figure 8: Density Comparison: Normal vs t-Distribution
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Scale the negative log returns
+bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
+
+# Fit a t-distribution to the negative log returns
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+# Recalculate degrees of freedom within the same chunk
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+df <- t_fit$estimate["df"]
+
+# Calculate mean and standard deviation of the negative log returns
+mean_neg_log_returns <- mean(bitcoin_negative_log_returns)
+sd_neg_log_returns <- sd(bitcoin_negative_log_returns)
+
+# Create a sequence of values for plotting the densities
+x_vals <- seq(min(bitcoin_negative_log_returns), max(bitcoin_negative_log_returns), length.out = 1000)
+
+# Calculate density for the normal distribution with the same mean and standard deviation
+normal_density <- dnorm(x_vals, mean = mean_neg_log_returns, sd = sd_neg_log_returns)
+
+# Calculate density for the t-distribution with the fitted degrees of freedom
+t_density <- dt((x_vals - mean_neg_log_returns) / sd_neg_log_returns, df = df) / sd_neg_log_returns
+
+# Plot the densities to compare tails
+plot(x_vals, normal_density, type = "l", col = "blue", lwd = 2, 
+     main = "Figure 8: Density Comparison: Normal vs t-Distribution",
+     ylab = "Density", xlab = "Negative Log Returns")
+lines(x_vals, t_density, col = "red", lwd = 2)
+legend("topright", legend = c("Normal", "t-Distribution"), col = c("blue", "red"), lwd = 2)
+```
+
+#### Figure 9: ACF of Bitcoin Prices
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Plot the ACF of the raw Bitcoin series
+ggAcf(bitcoin_prices, main = "ACF of Raw Bitcoin Prices")
+```
+
+#### Figure 10: ACF of Negative Log Returns
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Plot the ACF of the negative log returns
+ggAcf(bitcoin_negative_log_returns, main = "ACF of Negative Log Returns")
+```
+
+#### Figure 11: PACF of Negative Log Returns
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Plot the PACF of the negative log returns
+ggPacf(bitcoin_negative_log_returns, main = "PACF of Negative Log Returns")
+```
+
+#### Figure 12: ACF of ARIMA(2, 0, 2) Residuals
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+arima_fit <- arima(bitcoin_negative_log_returns, order = c(2,0,2))
+print(arima_fit)
+
+# Extract the residuals
+residuals_arima <- residuals(arima_fit)
+
+# ACF of residuals (to check for autocorrelation)
+acf(residuals_arima, main = "ACF of ARIMA Model Residuals")
+```
+
+#### Figure 13: QQ-Plot of ARIMA(2, 0, 2) Residuals
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# QQ-plot of residuals (to check for normality)
+qqnorm(residuals_arima)
+qqline(residuals_arima, col = "red")
+```
+
+#### Figure 14: Residuals of ARIMA(2, 0, 2) Over Time
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Plot residuals over time (to check for changing variance)
+plot(residuals_arima, main = "Residuals of ARIMA Model", ylab = "Residuals", xlab = "Time")
+```
+
+#### Figure 15: ACF of GARCH Normal(1, 1)
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+### Fitting a GARCH(1,1) model with a normal distribution
+garch_normal_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "norm", trace = FALSE)
+
+# Extract residuals from the fitted GARCH model with normal distribution
+garch_normal_residuals <- residuals(garch_normal_fit)
+
+# Plot ACF of residuals to check for autocorrelation
+acf(garch_normal_residuals, main = "ACF of Residuals (GARCH Normal)")
+```
+
+#### Figure 16: ACF of GARCH t-Distribution(1, 1)
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+### Fitting a GARCH(1,1) model with a standardized t-distribution ###
+garch_t_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "std", trace = FALSE)
+
+# Extract residuals from the fitted GARCH model with t-distribution
+garch_t_residuals <- residuals(garch_t_fit)
+
+# Plot ACF of residuals to check for autocorrelation
+acf(garch_t_residuals, main = "ACF of Residuals (GARCH t-Distribution)")
+```
+
+#### Figure 17: QQ-Plot of GARCH Normal(1, 1) Residuals
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# QQ-Plot to check for normality of residuals
+qqnorm(garch_normal_residuals, main = "QQ-Plot of Residuals (GARCH Normal)")
+qqline(garch_normal_residuals, col = "red")
+```
+
+#### Figure 18: QQ-Plot of GARCH t-Distribution(1, 1) Residuals
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# Generate a QQ-plot for the t-distribution residuals
+df_t <- garch_t_fit@fit$par["shape"]  # Degrees of freedom for the t-distribution
+qqplot(qt(ppoints(length(garch_t_residuals)), df = df_t), 
+       garch_t_residuals, main = "QQ-Plot of Residuals (GARCH t-Distribution vs t-Quantiles)",
+       xlab = "Theoretical Quantiles (t-distribution)", ylab = "Sample Quantiles")
+# t-Distribution GARCH Model follow the t-distribution quite well meaning it captures the heavy tails of the data.
+
+# Add a 45-degree line
+qqline(garch_t_residuals, distribution = function(p) qt(p, df = df_t), col = "red")
+```
+
+#### Figure 19: Cross-Correlation Function (CCF) between Bitcoin and Ethereum
+
+```{r, fig.align='center', fig.width=7, fig.height=4}
+# We take the concerned column.
+eth_prices <- Crypto_data$Ethereum
+
+# Function to compute negative log returns:
+negative_log_returns <- function(prices) {
+  log_returns <- diff(log(prices))  # Calculate log returns
+  return(-log_returns)  # Return the negative log returns
+}
+
+# Apply the function to the ETH prices
+eth_negative_log_returns <- negative_log_returns(eth_prices)
+
+# Ensure the length of both series is the same by trimming if necessary
+min_length <- min(length(bitcoin_negative_log_returns), length(eth_negative_log_returns))
+bitcoin_negative_log_returns <- bitcoin_negative_log_returns[1:min_length]
+eth_negative_log_returns <- eth_negative_log_returns[1:min_length]
+
+# Calculate the Cross-Correlation Function (CCF)
+ccf_result <- ccf(bitcoin_negative_log_returns, eth_negative_log_returns, plot=TRUE)
+```
+
+## Results tables
+
+#### Table 1: Augmented Dickey-Fuller Test for Bitcoin Prices
+
+```{r}
+# Perform the ADF test
+adf_test_result <- adf.test(bitcoin_prices)
+
+# Print the ADF test result
+print(adf_test_result)
+```
+
+#### Table 2: Augmented Dickey-Fuller Test for Negative Log Returns
+
+```{r}
+# Perform the ADF test on negative log returns
+adf_test_neg_log <- adf.test(bitcoin_negative_log_returns)
+
+# Print the result
+print(adf_test_neg_log)
+```
+
+#### Table 3: Anderson-Darling Test for Normality of Negative Log Returns
+
+```{r}
+# Perform the Anderson-Darling test
+ad_test_result <- ad.test(bitcoin_negative_log_returns)
+
+# Print the test result
+print(ad_test_result)
+```
+
+#### Table 4: Ljung-Box Test for Autocorrelation in Bitcoin Prices
+
+```{r}
+# Perform Ljung-Box test for the raw Bitcoin series
+ljung_box_raw <- Box.test(bitcoin_prices, lag = 20, type = "Ljung-Box") # lag = 20 because rule of thumb n/10
+
+# Print the results for the raw series
+print(ljung_box_raw)
+```
+
+#### Table 5: Ljung-Box Test for Autocorrelation in Negative Log Returns
+
+```{r}
+# Perform Ljung-Box test for the negative log returns
+ljung_box_neg_log <- Box.test(bitcoin_negative_log_returns, lag = 20, type = "Ljung-Box")
+
+# Print the results for the negative log returns
+print(ljung_box_neg_log)
+```
+
+#### Table 6: Ljung-Box Test for ARIMA(2, 0, 2) Residuals
+
+```{r}
+# Ljung-Box test on residuals (to formally test for autocorrelation)
+Box.test(residuals_arima, lag = 20, type = "Ljung-Box")
+```
+
+#### Table 7: Shapiro-Wilk Test for Normality of ARIMA(2, 0, 2) Residuals
+
+```{r}
+# Shapiro-Wilk test (to test for normality)
+shapiro.test(residuals_arima)
+```
+
+#### Table 8: Ljung-Box Test for GARCH Normal(1, 1) Residuals
+
+```{r}
+# Perform Ljung-Box test on residuals
+Box.test(garch_normal_residuals, lag = 20, type = "Ljung-Box")
+```
+
+#### Table 9: Ljung-Box Test for GARCH t-Distribution(1, 1) Residuals
+
+```{r}
+# Perform Ljung-Box test on residuals
+Box.test(garch_t_residuals, lag = 20, type = "Ljung-Box")
+```
+
+#### Table 10: Shapiro-Wilk Test for Normality of GARCH Normal(1, 1) Residuals
+
+```{r}
+shapiro.test(garch_normal_residuals)
+```
+#### Table 11: Ljung-Box Test for ARIMA-GARCH Residuals
+
+```{r}
+# Fit an ARIMA(2,0,2) model on the negative log returns
+arima_fit <- arima(bitcoin_negative_log_returns, order = c(2, 0, 2))
+
+# Extract the residuals from the ARIMA model
+arima_residuals <- residuals(arima_fit)
+
+# Fit a GARCH(1,1) model on the ARIMA residuals
+garch_fit_arima_resid <- garchFit(~ garch(1, 1), data = arima_residuals, trace = FALSE)
+
+garch_residuals <- residuals(garch_fit_arima_resid)
+
+# Box-Ljung test on GARCH residuals
+box_ljung_test <- Box.test(garch_residuals, lag = 20, type = "Ljung-Box")
+print(box_ljung_test)
+
+```
+#### Table 12: Correlation Test for Bitcoin and Ethereum Negative Log Returns
+
+```{r}
+# Perform the correlation test between Bitcoin and ETH negative log returns
+correlation_test <- cor.test(bitcoin_negative_log_returns, eth_negative_log_returns)
+
+# Print the result of the correlation test
+print(correlation_test)
+```
+#### Table 13: Granger Causality Test: Bitcoin Predicting Ethereum
+
+```{r}
+# Choose optimal lag length based on criteria
+lag_selection <- VARselect(Crypto_data, lag.max = 20, type = "const")
+print(lag_selection) # order s= 6 based on this
+
+# Granger causality test for Bitcoin predicting ETH
+grangertest(eth_negative_log_returns ~ bitcoin_negative_log_returns, order = 6)
+```
+
+#### Table 14: Granger Causality Test: Ethereum Predicting Bitcoin
+
+```{r}
+# Granger causality test for ETH predicting Bitcoin
+grangertest(bitcoin_negative_log_returns ~ eth_negative_log_returns, order = 6)
+```
+
+## Code
+
+### Practical 1
+
+```{r, echo=TRUE, results='hide', warning=FALSE}
+### Risk Analytics - Practical 1 ###
+####################################
+
+# Load libraries
+library(readr)
+library(tseries)
+library(nortest)
+library(MASS)
+library(fpp2)
+library(fGarch)
+library(lmtest)
+library(tidyr)
+library(ggplot2)
+library(vars)
+
+
+# Load data using a relative path
+Crypto_data <- read_csv("Practical 1/Data/Crypto_data.csv")
+
+# View the data
+View(Crypto_data)
+
+################## PART 1 ##################
+
+### a
+
+# Extract Bitcoin prices 
+bitcoin_prices <- Crypto_data[[1]] # or Crypto_data$Bitcoin
+
+# Plot the Bitcoin prices to visually inspect stationarity
+plot(bitcoin_prices, type = "l", main = "Bitcoin Prices", xlab = "Time", ylab = "Price")
+
+# Perform the ADF test
+adf_test_result <- adf.test(bitcoin_prices)
+
+# Print the ADF test result
+print(adf_test_result) # p-value = 0.3885 > 0.05, so it's non-stationary as we don't reject H0 (H0: Data are non-stationnary)
+
+### b
+
+# Create a function to compute negative log returns
+negative_log_returns <- function(prices) {
+  # Calculate log returns
+  log_returns <- diff(log(prices))
+  # Return the negative of the log returns
+  return(-log_returns)
+}
+
+# Apply the function to the Bitcoin prices
+bitcoin_negative_log_returns <- negative_log_returns(bitcoin_prices)
+
+# Plot the negative log returns
+plot(bitcoin_negative_log_returns, type = "l", main = "Negative Log Returns of Bitcoin", xlab = "Time", ylab = "Negative Log Returns")
+
+# Perform the ADF test on negative log returns
+adf_test_neg_log <- adf.test(bitcoin_negative_log_returns)
+
+# Print the result
+print(adf_test_neg_log) # p-value = 0.01 < 0.05, so it's stationary as we reject H0 (H0: Data are stationnary)
+
+### Plot both series on a common scale ###
+
+# Standardize both series (subtract mean, divide by standard deviation)
+bitcoin_prices_standardized <- scale(bitcoin_prices)
+bitcoin_negative_log_returns_standardized <- scale(bitcoin_negative_log_returns)
+
+# Create a data frame combining both series for plotting
+bitcoin_data_standardized <- data.frame(
+  Time = 1:length(bitcoin_prices_standardized),
+  Bitcoin_Prices_Standardized = bitcoin_prices_standardized,
+  Negative_Log_Returns_Standardized = c(NA, bitcoin_negative_log_returns_standardized)  # Add NA to align lengths
+)
+
+# Reshape the data for ggplot
+bitcoin_data_long_standardized <- pivot_longer(bitcoin_data_standardized, 
+                                               cols = c(Bitcoin_Prices_Standardized, Negative_Log_Returns_Standardized), 
+                                               names_to = "Series", values_to = "Values")
+
+# Plot the standardized series on a common scale, ensuring raw prices are drawn last (on top)
+ggplot() +
+  geom_line(data = subset(bitcoin_data_long_standardized, Series == "Negative_Log_Returns_Standardized"), 
+            aes(x = Time, y = Values, color = Series), size = 0.5) +  
+  geom_line(data = subset(bitcoin_data_long_standardized, Series == "Bitcoin_Prices_Standardized"), 
+            aes(x = Time, y = Values, color = Series), size = 0.5) +  
+  labs(title = "Comparison of Standardized Bitcoin Prices and Negative Log Returns",
+       x = "Time", y = "Standardized Values") +
+  scale_color_manual(values = c("Bitcoin_Prices_Standardized" = "blue", 
+                                "Negative_Log_Returns_Standardized" = "red"),
+                     labels = c("Prices", "Log Returns")) +  # Shortened labels
+  theme_minimal()
+
+### c
+
+# Draw a histogram of the negative log returns
+hist(bitcoin_negative_log_returns, breaks = 30, main = "Histogram of Negative Log Returns", xlab = "Negative Log Returns", col = "lightblue", border = "black")
+# --> seem normally distributed
+
+# Create a QQ-plot to check normality
+qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns vs. Normal Distribution")
+qqline(bitcoin_negative_log_returns, col = "red") # --> normally distributed only for non-extreme values
+
+# Perform the Anderson-Darling test
+ad_test_result <- ad.test(bitcoin_negative_log_returns)
+
+# Print the test result
+print(ad_test_result) # p-value < 0.05, so data are not normally distributed as we reject H0 (H0: Data are normally distributed)
+
+
+### d
+
+# Scale the negative log returns
+bitcoin_negative_log_returns_scaled <- scale(bitcoin_negative_log_returns)
+
+# Fit a t-distribution to the negative log returns
+t_fit <- fitdistr(bitcoin_negative_log_returns_scaled, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+### QQ-plot for t-distribution : seem to follow it quite well
+# Generate a QQ-plot for the t-distribution fit
+qqplot(qt(ppoints(length(bitcoin_negative_log_returns)), df = df_value), 
+       bitcoin_negative_log_returns, main = "QQ-Plot of Negative Log Returns vs t-Distribution",
+       xlab = "Theoretical Quantiles (t-distribution)", ylab = "Sample Quantiles")
+# Add a 45-degree line to the QQ-plot
+qqline(bitcoin_negative_log_returns, distribution = function(p) qt(p, df = df_value), col = "red")
+
+
+### QQ-plot for normal distribution : not so well
+# For comparison, create a QQ-plot for the normal distribution fit
+qqnorm(bitcoin_negative_log_returns, main = "QQ-Plot of Negative Normal Distribution")
+qqline(bitcoin_negative_log_returns, col = "red")
+# --> fit seem better with t-distribution than normal distribution
+
+################## Compare data distribution with normal and t-distribution #############################
+
+# Extract the fitted parameters from t_fit
+m <- t_fit$estimate["m"]      # Mean (location parameter)
+s <- t_fit$estimate["s"]      # Scale (related to standard deviation)
+df <- t_fit$estimate["df"]    # Degrees of freedom
+
+# Calculate the mean and standard deviation for the normal distribution
+mean_normal <- mean(bitcoin_negative_log_returns_scaled)
+sd_normal <- sd(bitcoin_negative_log_returns_scaled)
+
+# Plot the histogram of your data
+hist(bitcoin_negative_log_returns_scaled, breaks = 30, probability = TRUE, 
+     main = "Histogram of Bitcoin Negative Log Returns with Fitted t-Distribution and Normal Distribution",
+     xlab = "Negative Log Returns", col = "lightblue", border = "black")
+
+# Overlay the density of the fitted t-distribution
+x_vals <- seq(min(bitcoin_negative_log_returns_scaled), max(bitcoin_negative_log_returns_scaled), length.out = 1000)
+t_density <- dt((x_vals - m) / s, df) / s  # Density of the t-distribution with fitted parameters
+
+# Add the t-distribution curve to the plot
+lines(x_vals, t_density, col = "red", lwd = 2)
+
+# Overlay the density of the normal distribution
+normal_density <- dnorm(x_vals, mean = mean_normal, sd = sd_normal)
+
+# Add the normal distribution curve to the plot
+lines(x_vals, normal_density, col = "blue", lwd = 2)
+
+# Add a legend to distinguish between t-distribution and normal distribution
+legend("topright", legend = c("Fitted t-Distribution", "Normal Distribution"), 
+       col = c("red", "blue"), lwd = 2)
+
+############################################################################################################
+
+### e
+
+# Calculate mean and standard deviation of the negative log returns
+mean_neg_log_returns <- mean(bitcoin_negative_log_returns)
+sd_neg_log_returns <- sd(bitcoin_negative_log_returns)
+
+# Create a sequence of values for plotting the densities
+x_vals <- seq(min(bitcoin_negative_log_returns), max(bitcoin_negative_log_returns), length.out = 1000)
+
+# Calculate density for the normal distribution with the same mean and standard deviation
+normal_density <- dnorm(x_vals, mean = mean_neg_log_returns, sd = sd_neg_log_returns)
+
+# Calculate density for the t-distribution with the fitted degrees of freedom
+t_density <- dt((x_vals - mean_neg_log_returns) / sd_neg_log_returns, df) / sd_neg_log_returns
+
+# Plot the densities to compare tails
+plot(x_vals, normal_density, type = "l", col = "blue", lwd = 2, 
+     main = "Density Comparison: Normal vs t-Distribution",
+     ylab = "Density", xlab = "Negative Log Returns")
+lines(x_vals, t_density, col = "red", lwd = 2)
+legend("topright", legend = c("Normal", "t-Distribution"), col = c("blue", "red"), lwd = 2)
+
+# --> t-distribution has heavier tails than normal distribution, so it accounts for extreme values better
+
+### Conslusion of part 1 
+
+"Since the Bitcoin data follows the t-distribution more closely, and the t-distribution has fatter tails than the 
+normal distribution, it means that extreme values (large deviations from the mean) are more likely in the Bitcoin data 
+than if it were normally distributed."
+
+############################################################################################################################################
+
+################## PART 2 ##################
+
+### a
+
+# Plot the ACF of the raw Bitcoin series
+ggAcf(bitcoin_prices, main = "ACF of Raw Bitcoin Prices") # significant autocorrelation, non-stationary, difficult to model
+
+# Plot the ACF of the negative log returns
+ggAcf(bitcoin_negative_log_returns, main = "ACF of Negative Log Returns") # no significant autocorrelation, stationary, easier to model
+
+"Non-stationary time series are more difficult to model because the key statistical properties like mean, variance, 
+and autocovariance change over time. This variability makes it challenging to build predictive models since the underlying 
+structure of the data is constantly shifting." 
+
+"Stationary time series are easier to model because their statistical properties are constant over time. This stability 
+allows models (like ARMA, ARIMA, or GARCH) to assume that past behavior can be used to predict future behavior, given that 
+the underlying dynamics of the series don't change."
+
+### b
+
+# Ljung-Box test : H0 = no autocorrelation (white noise) / H1 = autocorrelation in the data
+# --> a ts with some autocorrelation can still be stationary
+
+# Perform Ljung-Box test for the raw Bitcoin series
+ljung_box_raw <- Box.test(bitcoin_prices, lag = 20, type = "Ljung-Box") # lag = 20 because rule of thumb n/10
+
+# Print the results for the raw series
+print(ljung_box_raw) # --> p-value < 0.05, so we reject H0, there is autocorrelation in the data
+
+# Perform Ljung-Box test for the negative log returns
+ljung_box_neg_log <- Box.test(bitcoin_negative_log_returns, lag = 20, type = "Ljung-Box")
+
+# Print the results for the negative log returns
+print(ljung_box_neg_log) # --> p-value < 0.05, so we reject H0, there is autocorrelation in the data BUT doesn't mean non-stationary
+
+"Even though the negative log returns are stationary, they still exhibit some autocorrelation but the autocorellation 
+is much lower for the negative log returns compared to the raw Bitcoin series."
+
+### c
+
+# Plot the ACF of the negative log returns
+ggAcf(bitcoin_negative_log_returns, main = "ACF of Negative Log Returns") # Spike at lag 2 so q=2
+
+# Plot the PACF of the negative log returns
+ggPacf(bitcoin_negative_log_returns, main = "PACF of Negative Log Returns") # Spike at lag 2 so p=2
+
+# Fit an ARIMA(2, 0,2) model to the negative log returns (d=0 because stationarity form the ACF and PACF)
+arima_fit <- arima(bitcoin_negative_log_returns, order = c(2,0,2))
+print(arima_fit)
+
+# Fit an auto.arima model to the negative log returns
+auto_arima_fit <- auto.arima(bitcoin_negative_log_returns)
+print(auto_arima_fit) # Auto.arima() suggests also an ARIMA(2,0,2) model, so it confirms the choice of the ARIMA model.
+
+### Asses residuals of the ARIMA model
+
+# Extract the residuals
+residuals_arima <- residuals(arima_fit)
+
+# ACF of residuals (to check for autocorrelation)
+acf(residuals_arima, main = "ACF of ARIMA Model Residuals")
+
+# Ljung-Box test on residuals (to formally test for autocorrelation)
+Box.test(residuals_arima, lag = 20, type = "Ljung-Box") # There is no significant autocorrelation in the residuals of the ARIMA model, which means the model has fully captured the patterns in the data (good sign)
+
+# QQ-plot of residuals (to check for normality)
+qqnorm(residuals_arima)
+qqline(residuals_arima, col = "red") # residuals don't seem to follow a normal distribution
+
+# Shapiro-Wilk test (to test for normality)
+shapiro.test(residuals_arima) # p-value < 0.05, so we reject H0, residuals are not normally distributed (not good sign)
+
+# Plot residuals over time (to check for changing variance)
+plot(residuals_arima, main = "Residuals of ARIMA Model", ylab = "Residuals", xlab = "Time") # Volatility clustering, so variance is not constant over time (not good sign)
+
+"The residuals of the ARIMA model show no significant autocorrelation, which is a good sign that the model has captured 
+the data. However the residuals do not follow a normal distribution, and the variance is not constant over time. This 
+suggests that the ARIMA model may not be the best fit for the data. Maybe using a GARCH model could be more appropriate"
+
+### d
+
+### Fitting a GARCH(1,1) model with a normal distribution
+garch_normal_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "norm", trace = FALSE)
+
+# Print the summary of the model
+summary(garch_normal_fit)
+
+# Extract residuals from the fitted GARCH model with normal distribution
+garch_normal_residuals <- residuals(garch_normal_fit)
+
+# Plot ACF of residuals to check for autocorrelation
+acf(garch_normal_residuals, main = "ACF of Residuals (GARCH Normal)")
+
+### It captures most of the autocorrelation, but the spike in lag 1 can suggests that there is some remaining of corr, 
+### the model does not capture full of the dependencies.
+
+# Perform Ljung-Box test on residuals
+Box.test(garch_normal_residuals, lag = 20, type = "Ljung-Box")
+### We reject the hypothesis of no autocorrelation. There is so a bit of autocorr (we see it by the ACF plot with spike in lag 1)
+
+# QQ-Plot to check for normality of residuals
+qqnorm(garch_normal_residuals, main = "QQ-Plot of Residuals (GARCH Normal)")
+qqline(garch_normal_residuals, col = "red")
+### There are deviations in the tails, there are so extreme values
+
+shapiro.test(garch_normal_residuals)
+### It rejects the hypothesis of the normality for the residuals. So the residuals are not normally distributed.
+
+### Fitting a GARCH(1,1) model with a standardized t-distribution ###
+garch_t_fit <- garchFit(~ garch(1, 1), data = bitcoin_negative_log_returns, cond.dist = "std", trace = FALSE)
+
+# Print the summary of the model
+summary(garch_t_fit)
+
+# Extract residuals from the fitted GARCH model with t-distribution
+garch_t_residuals <- residuals(garch_t_fit)
+
+# Plot ACF of residuals to check for autocorrelation
+acf(garch_t_residuals, main = "ACF of Residuals (GARCH t-Distribution)")
+
+# Perform Ljung-Box test on residuals
+Box.test(garch_t_residuals, lag = 20, type = "Ljung-Box")
+
+# Generate a QQ-plot for the t-distribution residuals
+df_t <- garch_t_fit@fit$par["shape"]  # Degrees of freedom for the t-distribution
+qqplot(qt(ppoints(length(garch_t_residuals)), df = df_t), 
+       garch_t_residuals, main = "QQ-Plot of Residuals (GARCH t-Distribution vs t-Quantiles)",
+       xlab = "Theoretical Quantiles (t-distribution)", ylab = "Sample Quantiles")
+# t-Distribution GARCH Model follow the t-distribution quite well meaning it captures the heavy tails of the data.
+
+# Add a 45-degree line
+qqline(garch_t_residuals, distribution = function(p) qt(p, df = df_t), col = "red")
+
+# Shapiro-Wilk test for normality of residuals
+shapiro.test(garch_t_residuals)
+
+### Conclusion between Normal-GARCH and t-GARCH model: both show still some autocorelation but the t-distribution model is more appropriate for the data because it captures the heavy tails better than the normal distribution model.
+
+# Compare the models based on AIC, BIC, or log-likelihood (lower AIC/BIC or higher log-likelihood is better)
+cat("AIC (Normal):", garch_normal_fit@fit$ics[1], "\n")
+cat("AIC (t-Distribution):", garch_t_fit@fit$ics[1], "\n")
+
+cat("BIC (Normal):", garch_normal_fit@fit$ics[2], "\n")
+cat("BIC (t-Distribution):", garch_t_fit@fit$ics[2], "\n")
+
+### The values are really close and not significantly different, so we can't conclude which model is better based on AIC or BIC but the t-distribution model is more appropriate for the data because it captures the heavy tails better than the normal distribution model.
+
+### e
+
+# Fit an ARIMA(2,0,2) model on the negative log returns
+arima_fit <- arima(bitcoin_negative_log_returns, order = c(2, 0, 2))
+
+# Extract the residuals from the ARIMA model
+arima_residuals <- residuals(arima_fit)
+
+# Fit a GARCH(1,1) model on the ARIMA residuals
+garch_fit_arima_resid <- garchFit(~ garch(1, 1), data = arima_residuals, trace = FALSE)
+
+# Summary of the GARCH fit
+summary(garch_fit_arima_resid)
+
+# Assess the quality of the GARCH(1,1) fit
+
+# Plot ACF of residuals from GARCH fit
+garch_residuals <- residuals(garch_fit_arima_resid)
+acf(garch_residuals, main = "ACF of Residuals (GARCH on ARIMA Residuals)")
+### There is fast no values out of the bounds, which shows the GARCH has captured fast all the volatility in the residuals.
+
+# QQ-plot of residuals
+qqnorm(garch_residuals)
+qqline(garch_residuals, col = "red", main = "QQ-Plot of Residuals (GARCH on ARIMA Residuals)")
+### There are deviations in the extreme, which is a sign of heavy tails.
+
+# Box-Ljung test on GARCH residuals
+box_ljung_test <- Box.test(garch_residuals, lag = 20, type = "Ljung-Box")
+print(box_ljung_test)
+### High p-val, which indicates there is no significant autocorr in the residuals.
+
+
+# Shapiro-Wilk test for normality of residuals
+shapiro_test <- shapiro.test(garch_residuals)
+print(shapiro_test)
+### The p-val is lower than 0.05, so we reject the null hypothesis of normality. So the residuals are not normally distributed.
+
+### f
+
+
+"1. ARIMA(2, 0, 2) Model:
+
+    Autocorrelation: The ACF of the residuals showed no significant autocorrelation, which is a good sign that the ARIMA model has captured most of the structure in the data.
+    Normality: The QQ-plot and Shapiro-Wilk test indicated that the residuals do not follow a normal distribution. This suggests that the ARIMA model is not capturing the full distributional characteristics of the data, especially the heavy tails or extreme values common in financial data.
+    Variance: The residual plot showed signs of volatility clustering, indicating that the variance is not constant (heteroscedasticity), which violates the ARIMA model's assumption of homoscedasticity.
+    Conclusion: Although the ARIMA model captured the serial correlation (autocorrelation), it does not handle the non-constant variance well, suggesting that this model is not fully suitable for this data.
+
+2. GARCH(1, 1) with Normal Distribution:
+
+    Autocorrelation: The ACF of the residuals showed that the GARCH(1, 1) model captured most of the autocorrelation, but there was a small spike at lag 1, indicating some remaining serial dependence that was not fully captured.
+    Normality: The QQ-plot and Shapiro-Wilk test indicated that the residuals are not normally distributed. The deviations in the tails suggest that the normal distribution is not capturing the heavy tails of the negative log returns, which is common in financial data.
+    Variance: The GARCH model allows for heteroscedasticity, meaning that it models the changing variance over time, capturing the volatility clustering in the data.
+    Conclusion: The GARCH(1, 1) model with a normal distribution improves over ARIMA in terms of handling volatility, but it still does not adequately account for the heavy tails in the data.
+
+3. GARCH(1, 1) with t-Distribution:
+
+    Autocorrelation: The ACF of the residuals showed that the GARCH(1, 1) model with a t-distribution performed similarly to the GARCH with normal distribution. The Ljung-Box test indicated that some autocorrelation might still be present, but overall, it captures the structure well.
+    Normality: The QQ-plot and Shapiro-Wilk test for the t-distribution residuals suggested that while the fit was not perfect, the t-distribution better captures the heavy tails than the normal distribution does.
+    Variance: Like the GARCH model with normal distribution, this model captures volatility clustering and accommodates heteroscedasticity well.
+    Conclusion: The GARCH(1, 1) model with a t-distribution provides a better fit for the data because it captures the heavy tails more effectively than the normal distribution. This model is generally more suitable for financial data, which often exhibits extreme returns."
+
+
+"Conclusion on Model Comparison:
+
+    Most Suitable Model: The GARCH(1, 1) model with t-distribution is likely the most suitable for the negative log returns of Bitcoin. It handles both the changing variance (heteroscedasticity) and the heavy tails present in financial returns, making it a more appropriate model for this type of data.
+
+    Homoscedasticity Assumption:
+        The ARIMA model clearly violates the homoscedasticity assumption, as it does not model the volatility clustering seen in the data.
+        Both GARCH models (with normal and t-distributions) allow for heteroscedasticity and are specifically designed to model the changing variance over time. Hence, in these models, the homoscedasticity assumption is not violated because the models account for the non-constant variance."
+
+################## PART 3 ##################
+
+# 1st: Negative log-return of ETH
+# We take the concerned column.
+eth_prices <- Crypto_data$Ethereum
+
+# Function to compute negative log returns:
+negative_log_returns <- function(prices) {
+  log_returns <- diff(log(prices))  # Calculate log returns
+  return(-log_returns)  # Return the negative log returns
+}
+
+# Apply the function to the ETH prices
+eth_negative_log_returns <- negative_log_returns(eth_prices)
+
+# Plot the negative log returns of ETH
+plot(eth_negative_log_returns, type = "l", main = "Negative Log Returns of ETH", xlab = "Time", ylab = "Negative Log Returns")
+
+# Perform the ADF test on the negative log returns of ETH
+adf_test_eth <- adf.test(eth_negative_log_returns)
+print(adf_test_eth)
+
+### a
+# Ensure the length of both series is the same by trimming if necessary
+min_length <- min(length(bitcoin_negative_log_returns), length(eth_negative_log_returns))
+bitcoin_negative_log_returns <- bitcoin_negative_log_returns[1:min_length]
+eth_negative_log_returns <- eth_negative_log_returns[1:min_length]
+
+# Perform the correlation test between Bitcoin and ETH negative log returns
+correlation_test <- cor.test(bitcoin_negative_log_returns, eth_negative_log_returns)
+
+# Print the result of the correlation test
+print(correlation_test)
+# The p-value is greater than 0.05(= 0.905), you cannot reject the null hypothesis, meaning the series might be independent.
+# So the negative log return of Bitcoin & Ethereum are apparently not correlated, so these 2 series are independent.
+
+### b
+# Calculate the Cross-Correlation Function (CCF)
+ccf_result <- ccf(bitcoin_negative_log_returns, eth_negative_log_returns, plot=TRUE)
+
+# Print the CCF result (if needed)
+print(ccf_result)
+# No corr at lag 0, so the 2 series are independent in the beginning.
+# There is a notable spike at lag -5, so change in ETH log return precedes change in BTC from around 5 periods. 
+# Largely above the IC, so statistically significant.
+# This pattern indicates some degree of dependency between the 2 series, ETH potentially driving BTC at certain points.
+
+### c
+
+# Choose optimal lag length based on criteria
+lag_selection <- VARselect(Crypto_data, lag.max = 20, type = "const")
+print(lag_selection) # order s= 6 based on this
+
+# Granger causality test for Bitcoin predicting ETH
+grangertest(eth_negative_log_returns ~ bitcoin_negative_log_returns, order = 6)
+# The first test gives a p-val very small (0.001<<), so we reject the null hypothesis (H0: no predictive power).
+# There is predictive power in Bitcoin's returns for forecasting Ethereum's returns.
+
+# Granger causality test for ETH predicting Bitcoin
+grangertest(bitcoin_negative_log_returns ~ eth_negative_log_returns, order = 6)
+# The p-val is large (0.81), so we cannot reject the null hypothesis (H0: no predictive power).
+# So Ethereum's past returns do not have predictive power for Bitcoin's future returns.
+
+### d
+### 1:
+# We can reasonably expect that Ethereum will also experience a negative impact shortly after. 
+# This is because the causality test suggests that Bitcoin's price movements tend to influence Ethereum's price movements.
+# one should expect Ethereum prices to also experience a downturn in the near future based on the observed predictive relationship between their returns.
+
+### 2: 
+# We cannot conclude that Bitcoin will be similarly affected.
+# The lack of Granger causality from Ethereum to Bitcoin suggests that Ethereum's price movements do not have a significant predictive power over Bitcoin's movements. 
+# Therefore, Bitcoin might not experience a similar drop just because Ethereum does.
+# Bitcoin may remain unaffected, or its movement could depend on other market forces, not directly on Ethereum's price action.
+```
+
+## Practical 2
+
+```{r, echo=TRUE, results='hide', warning=FALSE}
+# Libraries
+library(readr)
+library(dplyr)
+library(lubridate)
+library(extRemes)
+library(evd)
+library(ggplot2)
+library(POT)
+
+################# Part.1 ######################
+
+# (a) Load data using a relative paths and plotting
+gv_temp <- read_csv("Practical 2/Data/Geneva_temperature.csv")
+ls_rain <- read_csv("Practical 2/Data/Precipitation_lausanne_full.csv")
+data <- read.csv("Practical 2/Data/Geneva_temperature.csv")
+
+# Plot histogram of daily precipitation frequency
+hist(ls_rain$Precipitation, main="Histogram of Daily Precipitation", xlab="Daily Precipitation (mm)")
+
+# (b) Extract yearly maxima and plot histogram
+
+# Convert the Date column from character to Date format (adjusting for the format)
+ls_rain <- ls_rain |>
+  mutate(Date = as.Date(Date, format = "%m/%d/%Y"))
+
+# Extract yearly maxima
+yearly_max <- ls_rain |>
+  group_by(Year = year(Date)) |>
+  summarise(Precipitation = max(Precipitation, na.rm = TRUE))
+
+# Plot the histogram of yearly maxima
+hist(yearly_max$Precipitation, main="Histogram of Yearly Maxima", xlab="Yearly Maxima (mm)", breaks=10)
+
+#### (c) Linear Model for Yearly Max Precipitation ####
+
+# Fit a linear model for yearly maximum precipitation
+lm_model <- lm(Precipitation ~ Year, data=yearly_max)
+
+# Generate a data frame for the next 10 years
+future_years <- data.frame(Year = seq(max(yearly_max$Year) + 1, max(yearly_max$Year) + 10))
+
+# Predict for the next 10 years with confidence intervals
+predictions <- predict(lm_model, newdata=future_years, interval="confidence")
+
+# Combine actual data and predicted values for plotting
+combined_years <- c(yearly_max$Year, future_years$Year)
+combined_precipitation <- c(yearly_max$Precipitation, predictions[,1])
+
+# Plot the actual data and predictions
+plot(yearly_max$Year, yearly_max$Precipitation, main="Predictions for Next 10 Years",
+     xlab="Year", ylab="Precipitation (mm)", pch=16)
+# Add the fitted line and confidence intervals
+lines(combined_years, combined_precipitation, col="blue")
+lines(future_years$Year, predictions[,2], col="red", lty=2)  # Lower bound
+lines(future_years$Year, predictions[,3], col="red", lty=2)  # Upper bound
+legend("topleft", legend=c("Fitted Line", "Confidence Interval"), col=c("blue", "red"), lty=c(1, 2))
+
+#### (d) GEV Model with Constant and Time-Varying Parameters ####
+
+# Fit a GEV model with constant parameters
+gev_model_const <- fevd(Precipitation ~ Year, data = yearly_max, type = "GEV")
+
+# Fit a GEV model with time-varying location parameter (linear trend with Year)
+gev_model_time_var <- fevd(Precipitation ~ Year, data = yearly_max, location.fun = ~ Year, type = "GEV")
+
+# Manually calculate AIC for the constant model
+n_params_const <- length(gev_model_const$results$par)  # Number of estimated parameters
+loglik_const <- gev_model_const$results$value           # Negative log-likelihood
+aic_const <- 2 * n_params_const + 2 * loglik_const      # AIC formula
+bic_const <- 2 * loglik_const + log(nrow(yearly_max)) * n_params_const
+
+# Manually calculate AIC + BIC for the time-varying model
+n_params_time_var <- length(gev_model_time_var$results$par)
+loglik_time_var <- gev_model_time_var$results$value
+aic_time_var <- 2 * n_params_time_var + 2 * loglik_time_var
+bic_time_var <- 2 * loglik_time_var + log(nrow(yearly_max)) * n_params_time_var
+
+# Print the AIC and BIC values
+cat("AIC (Constant Parameters):", aic_const, "\n")
+cat("AIC (Time-Varying Location):", aic_time_var, "\n")
+cat("BIC (Constant Parameters):", bic_const, "\n")
+cat("BIC (Time-Varying Location):", bic_time_var, "\n")
+
+# Plot the GEV model with constant parameters
+plot(gev_model_const, main="GEV Model with Constant Parameters")
+
+#### (e) Diagnostic Plots ####
+
+library(ismev)
+ismevconst <- gev.fit(yearly_max$Precipitation)
+gev.diag(ismevconst)
+
+#### (f) Predict 10-Year Return Level and Plot ####
+
+# Define return period
+T <- 10  # 10-year return period
+
+# Extract parameters from ismevconst
+mu <- ismevconst$mle[1]   # Location parameter
+sigma <- ismevconst$mle[2] # Scale parameter
+xi <- ismevconst$mle[3]    # Shape parameter
+
+# Calculate 10-year return level using the GEV formula
+z_T <- mu + (sigma / xi) * ((-log(1 - 1 / T))^(-xi) - 1)
+cat("10-Year Return Level:", z_T, "\n")
+
+# Plot historical data and 10-year return level
+plot(yearly_max$Year, yearly_max$Precipitation, main="10-Year Return Level Prediction",
+     xlab="Year", ylab="Precipitation (mm)", pch=16, col="blue")
+abline(h = z_T, col = "red", lty = 2)
+legend("topright", legend=c("Yearly Maxima", "10-Year Return Level"), col=c("blue", "red"), pch=c(16, NA), lty=c(NA, 2))
+
+#### (g) Historical Values Above Specified Return Levels ####
+
+# Define return periods
+periods <- c(10, 20, 50, 85)
+
+# Calculate return levels for each period using the GEV model
+return_levels <- sapply(periods, function(T) {
+  mu + (sigma / xi) * ((-log(1 - 1 / T))^(-xi) - 1)
+})
+names(return_levels) <- periods
+
+# Count historical values above each return level
+counts_above <- sapply(return_levels, function(level) {
+  sum(yearly_max$Precipitation > level)
+})
+
+# Display the results
+return_levels
+counts_above
+
+#### (h) Return Period of 100 mm of Precipitation ####
+
+# Define threshold
+threshold <- 100
+
+# Calculate return period
+return_period_100mm <- 1 / (1 - pgev(threshold, loc = mu, scale = sigma, shape = xi))
+cat("Return period for 100 mm precipitation:", return_period_100mm, "years\n")
+
+#### (i) Probability of Exceeding 150 mm in a Given Year ####
+
+# Define threshold for daily event
+threshold_daily <- 150
+
+# Probability of exceeding 150 mm in one day
+prob_exceed_daily <- 1 - pgev(threshold_daily, loc = mu, scale = sigma, shape = xi)
+
+# Assuming 365 days of independence, probability of at least one day > 150 mm in a year
+prob_exceed_annual <- 1 - (1 - prob_exceed_daily)^365
+cat("Probability of exceeding 150 mm in a day at least once in a year:", prob_exceed_annual, "\n")
+
+################# Part.2 ######################
+
+#### (a) Time series plot of the daily precipitation ####
+
+# Create a time series plot of daily precipitation
+ggplot(data = ls_rain, aes(x = Date, y = Precipitation)) +
+  geom_line(color = "blue") +
+  labs(title = "Time Series Plot of Daily Precipitation",
+       x = "Date",
+       y = "Daily Precipitation (mm)") +
+  theme_minimal()
+
+#### (b) Mean Residual Life Plot and Threshold Selection ####
+
+# Create a Mean Residual Life Plot to determine a reasonable threshold
+mrlplot(ls_rain$Precipitation, main="Mean Residual Life Plot for Daily Precipitation", xlab="Threshold (mm)", ylab="Mean Excess")
+
+# Choose a threshold based on the MRL plot
+threshold <- 30
+
+# Highlight data that exceeds the threshold in the time series plot
+ggplot(data = ls_rain, aes(x = Date, y = Precipitation)) +
+  geom_line(color = "blue") +
+  geom_point(data = subset(ls_rain, Precipitation > threshold), aes(x = Date, y = Precipitation), color = "red") +
+  labs(title = "Time Series Plot of Daily Precipitation with Highlighted Exceedances",
+       x = "Date",
+       y = "Daily Precipitation (mm)") +
+  theme_minimal()
+
+#### (c) Fit a GPD for Data Exceeding Threshold ####
+
+# Fit a Generalized Pareto Distribution (GPD) for data exceeding the threshold
+gpd_fit <- fpot(ls_rain$Precipitation, threshold = threshold, method = "Nelder-Mead")
+
+# Diagnostic plot for GPD fit
+par(mfrow = c(2, 2))
+plot(gpd_fit)
+
+# Based on the diagnostic plots, the GPD model appears to be a reasonable fit. The QQ plot shows that most points lie along the 45-degree line, indicating a good fit. The return level plot also shows consistency between the model and empirical data. If significant deviations were present, we would reconsider the choice of the threshold.
+
+
+#### (d) Compute Return Levels for Different Periods ####
+
+# Define return periods
+return_periods <- c(10, 20, 50, 85)
+
+# Extract GPD parameters
+threshold_gpd <- gpd_fit$threshold
+scale <- gpd_fit$param["scale"]
+shape <- gpd_fit$param["shape"]
+
+# Calculate lambda (rate of exceedance)
+n_exceedances <- sum(ls_rain$Precipitation > threshold_gpd)
+lambda <- n_exceedances / nrow(ls_rain)
+
+# Calculate return levels for specified return periods using the fitted GPD model
+return_levels_gpd <- sapply(return_periods, function(T) {
+  if (shape != 0) {
+    threshold_gpd + (scale / shape) * (((T / lambda)^shape) - 1)
+  } else {
+    threshold_gpd + scale * log(T / lambda)
+  }
+})
+
+# Print return levels
+names(return_levels_gpd) <- return_periods
+cat("Return levels for specified return periods:
+")
+print(return_levels_gpd)
+
+
+#### (e) Compute Return Period for 100 mm of Precipitation ####
+
+
+# Calculate the return period for 100 mm of precipitation using the GPD model
+if (shape != 0) {
+  return_period_100 <- (1 / lambda) * (1 + (shape / scale) * (threshold - threshold_gpd))^(1 / shape)
+} else {
+  return_period_100 <- (1 / lambda) * exp((threshold - threshold_gpd) / scale)
+}
+
+# Print the return period for 100 mm of precipitation
+cat("Return period for 100 mm of precipitation:", return_period_100, "years
+")
+
+
+#### (f) Probability of Exceeding 150 mm in a Given Year ####
+
+# Define threshold for daily event
+threshold_daily <- 150
+
+# Probability of exceeding 150 mm in one day
+prob_exceed_daily <- 1 - pgev(threshold_daily, loc = mu, scale = sigma, shape = xi)
+
+# Assuming 365 days of independence, probability of at least one day > 150 mm in a year
+prob_exceed_annual <- 1 - (1 - prob_exceed_daily)^365
+cat("Probability of exceeding 150 mm in a day at least once in a year:", prob_exceed_annual, "\n")
+
+
+#### (g) Compare POT Approach with Block Maxima Method ####
+
+# Comparison Explanation
+cat("Comparison of POT and Block Maxima Methods:\n")
+
+# Advantages of POT (Peaks Over Threshold) Approach
+cat("Advantages of POT Approach:\n")
+cat("- More data points: The POT method uses all exceedances over a threshold, leading to more data points and potentially more accurate parameter estimation.\n")
+cat("- Flexibility: The choice of threshold allows flexibility in modeling extremes, capturing the tail of the distribution more effectively.\n")
+
+# Drawbacks of POT Approach
+cat("Drawbacks of POT Approach:\n")
+cat("- Threshold selection: Choosing an appropriate threshold can be challenging and subjective, which affects the model fit.\n")
+cat("- Sensitivity: POT is sensitive to the threshold value, and an inappropriate choice can lead to biased estimates.\n")
+
+# Advantages of Block Maxima Method
+cat("Advantages of Block Maxima Method:\n")
+cat("- Simplicity: The method is conceptually simple, as it only takes the maximum value from each block of data (e.g., annual maxima).\n")
+cat("- Widely used: It has been traditionally used for extreme value analysis and is often easier to communicate in practice.\n")
+
+# Drawbacks of Block Maxima Method
+cat("Drawbacks of Block Maxima Method:\n")
+cat("- Loss of information: By only using one maximum value per block, the method discards a lot of data, which can lead to less accurate parameter estimates.\n")
+cat("- Larger variance: Due to fewer data points, the estimates can have larger variance, especially when the number of blocks is small.\n")
+
+# Preference
+cat("Preference:\n")
+cat("In most cases, the POT approach is preferred when the goal is to make the best use of available extreme data and the threshold can be selected appropriately. However, if simplicity is desired and the data is naturally segmented into clear blocks, the Block Maxima method may be more suitable.\n")
+
+
+################# Part.3 ######################
+#### (a) Upload the Geneva temperature data. Plot the data. Subset the data for the summer months (June to September) ####
+
+# Combine "Year" and "Month" into a single "Date" column
+data$Date <- as.Date(paste(data$Year, data$Month, "01", sep = "-"))
+
+# Plot the temperature data over time
+ggplot(data, aes(x = Date, y = AvgTemperature)) +
+  geom_line(color = "blue", linewidth = 1) +
+  labs(
+    title = "Geneva Temperature Data",
+    x = "Date",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+
+# Subset the data for summer months (June to September)
+summer_data <- subset(data, Month >= 6 & Month <= 9)
+
+# Plot the summer temperature data
+ggplot(summer_data, aes(x = Date, y = AvgTemperature)) +
+  geom_line(color = "orange", linewidth = 1) +
+  labs(
+    title = "Geneva Summer Temperature Data (June to September)",
+    x = "Date",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+
+#### (b) Compute the extremal index of the subsetted series with appropriatelly chosen threshold. Do the extremes occur in clusters? ####
+#### What is the probability that if the temperature today is extreme (above the chosen threshold) then tomorrow will be also extreme? ####
+
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Compute the extremal index
+extremal_index <- extremalindex(summer_data$AvgTemperature, threshold = threshold)
+
+# Print the results
+cat("Extremal Index:", extremal_index, "\n")
+
+# Check if extremes occur in clusters
+cat("Do extremes occur in clusters? ", ifelse(extremal_index < 1, "Yes", "No"), "\n")
+
+# Compute the probability that if today's temperature is extreme, tomorrow's is also extreme
+prob_extreme_tomorrow <- extremal_index
+cat("Probability that if today's temperature is extreme, tomorrow's will be also extreme:", prob_extreme_tomorrow, "\n")
+
+#### (c)  Decluster the data using a suitable threshold. Plot the resulting declustered data ####
+
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Decluster the data using the decluster function
+declustered_data <- decluster(summer_data$AvgTemperature, threshold = threshold)
+
+# Create a data frame for plotting (to align with declustered indices)
+declustered_series <- data.frame(
+  Index = seq_along(declustered_data),
+  AvgTemperature = declustered_data
+)
+
+# Plot the original and declustered data
+
+ggplot() +
+  geom_line(data = summer_data, aes(x = 1:nrow(summer_data), y = AvgTemperature),
+            alpha = 0.5, color = "blue", linewidth = 1) +
+  geom_point(data = declustered_series, aes(x = Index, y = AvgTemperature),
+             color = "orange", size = 1.5) +
+  labs(
+    title = "Declustered Geneva Summer Temperature Data",
+    x = "Index",
+    y = "Average Temperature (°C)"
+  ) +
+  theme_minimal()
+
+
+#### (d) Fit a Generalized Pareto Distribution (GPD) to the data, both raw and declustered. Compare the models and compute 10-year return level ####
+
+# Define the threshold for extreme temperatures
+threshold <- quantile(summer_data$AvgTemperature, 0.95, na.rm = TRUE) # 95th percentile
+
+# Fit a GPD to the raw data
+fit_gpd_raw <- fevd(summer_data$AvgTemperature, threshold = threshold, type = "GP", method = "MLE")
+
+# Fit a GPD to the declustered data
+fit_gpd_decl <- fevd(declustered_data, threshold = threshold, type = "GP", method = "MLE")
+
+# Summary of fitted models
+summary(fit_gpd_raw)
+summary(fit_gpd_decl)
+
+# Compute the 10-year return level for both models
+return_period <- 10
+return_level_raw <- return.level(fit_gpd_raw, return.period = return_period)
+return_level_decl <- return.level(fit_gpd_decl, return.period = return_period)
+
+# Print return levels
+cat("10-year Return Level (Raw Data):", return_level_raw, "\n")
+cat("10-year Return Level (Declustered Data):", return_level_decl, "\n")
+```
+
+## Practical 3
+
+### Cleaning
+
+```{r, echo=TRUE, results='hide', warning=FALSE}
+### Data Cleaning - Practical 3 ###
+###################################
+
+# Load the required libraries
+library(dplyr)
+library(stringr)
+
+# Load the data
+suicide_attacks <- read.csv("Practical 3/Data/suicide_attacks.csv")
+
+# Remove unnecessary columns
+columns_to_remove <- c(
+  "status", "attacker.gender", "statistics.sources", "statistics...weapon_oth",
+  "statistics...weapon_unk", "claim", "statistics...wounded_low", 
+  "statistics...killed_low", "statistics...killed_high_civilian", 
+  "statistics...killed_low_civilian", "statistics...killed_low_political", 
+  "statistics...killed_high_political", "statistics...killed_low_security", 
+  "statistics...killed_high_security", "statistics...female_attackers", 
+  "statistics...male_attackers", "statistics...unknown_attackers",
+  "statistics...belt_bomb", "statistics...truck_bomb", "statistics...car_bomb"
+)
+
+suicide_attacks <- suicide_attacks %>%
+  select(-all_of(columns_to_remove))
+
+# Remove rows with negative values in all numeric columns except target.latitude and target.longitude
+columns_to_exclude <- c("target.latitude", "target.longtitude")
+suicide_attacks <- suicide_attacks %>%
+  filter(across(
+    .cols = where(is.numeric) & !all_of(columns_to_exclude), 
+    .fns = ~ . >= 0
+  ))
+
+# Remove duplicate rows
+suicide_attacks <- distinct(suicide_attacks)
+
+# Combine rows with the same values in all columns except "groups"
+suicide_attacks <- suicide_attacks %>%
+  group_by(across(-groups)) %>%
+  summarise(
+    groups_combined = paste(unique(groups), collapse = ", "), 
+    .groups = "drop"
+  ) %>%
+  mutate(groups_combined = sub(",.*", "", groups_combined)) %>%
+  relocate(groups_combined)
+
+# Create the "date" column by merging "date.year", "date.month", and "date.day"
+suicide_attacks <- suicide_attacks %>%
+  mutate(date = as.Date(paste(date.year, date.month, date.day, sep = "-"))) %>%
+  relocate(date, .before = date.year)
+
+# Rename columns by removing specific prefixes
+prefixes_to_remove <- c("^statistics\\.\\.\\.")
+colnames(suicide_attacks) <- colnames(suicide_attacks) %>%
+  str_remove(paste(prefixes_to_remove, collapse = "|"))
+
+# Rename columns, create a new column, and relocate it
+suicide_attacks <- suicide_attacks %>%
+  rename(
+    killed = killed_high,
+    wounded = wounded_high,
+    group = groups_combined
+  ) %>%
+  mutate(
+    total_casualties = killed + wounded
+  ) %>%
+  relocate(total_casualties, .before = wounded)
+
+View(suicide_attacks)
+
+# Save the cleaned dataset
+write.csv(suicide_attacks, "Practical 3/Data/suicide_attacks_cleaned.csv", row.names = FALSE)
+```
+
+### EDA
+
+```{r, echo=TRUE, results='hide', warning=FALSE}
+### EDA - Practical 3 ###
+#########################
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Read the data
+suicide_attacks <- read.csv("Practical 3/Data/suicide_attacks_cleaned.csv")
+attach(suicide_attacks)
+View(suicide_attacks)
+
+# Ensure the "date" column is properly formatted as a Date object
+suicide_attacks <- suicide_attacks %>%
+  mutate(date = as.Date(paste(date.year, date.month, date.day, sep = "-")))
+
+#####################################################################################
+
+### Summarise variable of interest ###
+######################################
+
+### Wounded
+summary(wounded)
+
+### Killed
+summary(killed)
+
+### Total Causalities
+summary(total_casualties)
+
+#####################################################################################
+
+### Histogram plots ###
+#######################
+
+### Group by groups
+
+# Top 10 groups with the highest total casualties
+top_groups <- suicide_attacks %>%
+  group_by(group) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties)) %>%
+  slice_head(n = 10)
+
+# Histogram for top 10 groups
+ggplot(top_groups, aes(x = reorder(group, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Groups by Total Casualties",
+    x = "Groups",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Group by country
+
+# Top 10 countries with the highest total casualties
+top_countries <- suicide_attacks %>%
+  group_by(target.country) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties)) %>%
+  slice_head(n = 10)
+
+# Histogram for top 10 countries
+ggplot(top_countries, aes(x = reorder(target.country, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Countries by Total Casualties",
+    x = "Countries",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Group by target nationality
+
+# Top 10 target nationalities with the highest total casualties
+top_nationality <- suicide_attacks %>%
+  group_by(target.nationality) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties)) %>%
+  slice_head(n = 10)
+
+# Histogram for top 10 nationalities
+ggplot(top_nationality, aes(x = reorder(target.nationality, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Target Nationality by Total Casualties",
+    x = "Nationality",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Group by region
+
+# Regions total casualties
+top_region <- suicide_attacks %>%
+  group_by(target.region) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties)) 
+
+# Histogram for regions
+ggplot(top_region, aes(x = reorder(target.region, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Regions by Total Casualties",
+    x = "Region",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Group by target city
+
+# Top 10 cities with the highest total casualties
+top_city <- suicide_attacks %>%
+  group_by(target.city) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties)) %>%
+  slice_head(n = 10)
+
+# Histogram for top 10 cities
+ggplot(top_city, aes(x = reorder(target.city, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Target Cities by Total Casualties",
+    x = "City",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Group by target type
+
+# Top type with the highest total casualties
+top_type <- suicide_attacks %>%
+  group_by(target.type) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties)) %>%
+  slice_head(n = 10)
+
+# Histogram for target type
+ggplot(top_type, aes(x = reorder(target.type, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Target Types by Total Casualties",
+    x = "Types",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Group by target weapon
+
+## Casualties
+# Summarise total casualties for each weapon type
+weapon_casualties <- suicide_attacks %>%
+  group_by(target.weapon) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties))
+
+# Bar chart for weapon types by total casualties
+ggplot(weapon_casualties, aes(x = reorder(target.weapon, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Total Casualties by Weapon Type",
+    x = "Weapon Types",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+## Distribution
+# Count occurrences of each weapon type in target.weapon
+weapon_distribution <- suicide_attacks %>%
+  group_by(target.weapon) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+# Bar chart for weapon types
+ggplot(weapon_distribution, aes(x = reorder(target.weapon, -count), y = count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Distribution of Weapon Types",
+    x = "Weapon Types",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+### Group by number of attackers
+
+## Casualties
+# Summarise total casualties for each number of attackers
+attackers_casualties <- suicide_attacks %>%
+  group_by(attackers) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties)) %>%
+  slice_head(n = 10)
+
+# Bar chart for attacker numbers by total casualties
+ggplot(attackers_casualties, aes(x = reorder(attackers, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Total Casualties by Number of Attackers",
+    x = "Number of Attackers",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+## Distribution
+# Count occurrences of number of attackers
+attackers_distribution <- suicide_attacks %>%
+  group_by(attackers) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+
+
+# Bar chart for attacker types
+ggplot(attackers_distribution, aes(x = reorder(attackers, -count), y = count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Distribution of Attackers' Number",
+    x = "Attacker Types",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+### Group by date
+
+## Casualties
+# Calculate total casualties for each year and select the top 10
+top_dates_casualties <- suicide_attacks %>%
+  group_by(date.year) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  arrange(desc(total_casualties)) %>%
+  slice_head(n = 10)
+
+# Bar chart for the top 10 dates with highest casualties
+ggplot(top_dates_casualties, aes(x = reorder(date.year, -total_casualties), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Dates with Highest Total Casualties",
+    x = "Dates",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+## Distributions
+# Count occurrences for each year
+top_dates <- suicide_attacks %>%
+  group_by(date.year) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 10)
+
+# Bar chart for the top 10 dates
+ggplot(top_dates, aes(x = reorder(date.year, -count), y = count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Years with Highest Occurrences",
+    x = "Dates",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+### Group by Year
+
+# Summarize total casualties and distribution by year
+yearly_data <- suicide_attacks %>%
+  group_by(date.year) %>%
+  summarise(
+    total_casualties = sum(total_casualties, na.rm = TRUE),
+    count = n()
+  ) %>%
+  arrange(desc(total_casualties))
+
+## Casualties
+# Bar chart for total casualties by year
+ggplot(yearly_data, aes(x = date.year, y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Total Casualties by Year",
+    x = "Year",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+## Distribution
+# Bar chart for distribution (number of incidents) by year
+ggplot(yearly_data, aes(x = date.year, y = count)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Distribution of Incidents by Year",
+    x = "Year",
+    y = "Number of Incidents"
+  ) +
+  theme_minimal()
+
+### Group by months
+
+# Summarize total casualties and distribution by month
+monthly_data <- suicide_attacks %>%
+  group_by(date.month) %>%
+  summarise(
+    total_casualties = sum(total_casualties, na.rm = TRUE),
+    count = n()
+  ) %>%
+  arrange(desc(total_casualties))
+
+## Casualties
+# Bar chart for total casualties by month
+ggplot(monthly_data, aes(x = factor(date.month, levels = 1:12), y = total_casualties)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Total Casualties by Month",
+    x = "Month",
+    y = "Total Casualties"
+  ) +
+  scale_x_discrete(labels = month.abb) +
+  theme_minimal()
+
+## Distribution
+# Bar chart for distribution (number of incidents) by month
+ggplot(monthly_data, aes(x = factor(date.month, levels = 1:12), y = count)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Distribution of Incidents by Month",
+    x = "Month",
+    y = "Number of Incidents"
+  ) +
+  scale_x_discrete(labels = month.abb) +
+  theme_minimal()
+
+#####################################################################################
+
+### Line plots ###
+##################
+
+### Casualties over time
+ggplot(data = suicide_attacks, aes(x = date, y = total_casualties)) +
+  geom_line(color = "blue") +
+  labs(title = "Casualties Over Time",
+       x = "Date",
+       y = "Casualties") +
+  theme_minimal()
+
+### Casualties over time without 9/11
+# Filter out the data for 09.11.2001
+suicide_attacks_filtered <- suicide_attacks %>%
+  filter(date != as.Date("2001-09-02"))
+
+# Plot fatalities over time
+ggplot(data = suicide_attacks_filtered, aes(x = date, y = total_casualties)) +
+  geom_line(color = "blue") +
+  labs(title = "Fatalities Over Time (Excluding 09.11.2001)",
+       x = "Date",
+       y = "Fatalities (High Estimate)") +
+  theme_minimal()
+
+### Log(causalties) over time
+ggplot(data = suicide_attacks, aes(x = date, y = log(total_casualties))) +
+  geom_line(color = "blue") +
+  labs(title = "Casualties Over Time",
+       x = "Date",
+       y = "Casualties") +
+  theme_minimal()
+
+### Yearly trend
+ggplot(yearly_data, aes(x = date.year, y = total_casualties)) +
+  geom_line(group = 1, color = "blue", size = 1) +
+  geom_point(color = "red") +
+  labs(
+    title = "Total Casualties Over the Years",
+    x = "Year",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Monthly trend
+ggplot(monthly_data, aes(x = factor(date.month, levels = 1:12), y = total_casualties)) +
+  geom_line(group = 1, color = "blue", size = 1) +
+  geom_point(color = "red") +
+  labs(
+    title = "Total Casualties Over the Months",
+    x = "Month",
+    y = "Total Casualties"
+  ) +
+  scale_x_discrete(labels = month.abb) +
+  theme_minimal()
+
+### Seasonal Trends
+seasonal_trend <- suicide_attacks %>%
+  group_by(date.year, date.month) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE), .groups = "drop")
+
+ggplot(seasonal_trend, aes(x = factor(date.month, levels = 1:12), y = total_casualties, color = as.factor(date.year), group = date.year)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Monthly Casualties Over the Years",
+    x = "Month",
+    y = "Total Casualties",
+    color = "Year"
+  ) +
+  scale_x_discrete(labels = month.abb) +
+  theme_minimal()
+
+## Top groups over time
+top_groups_trend <- suicide_attacks %>%
+  filter(group %in% top_groups$group) %>%
+  group_by(date.year, group) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE), .groups = "drop")
+
+ggplot(top_groups_trend, aes(x = date.year, y = total_casualties, color = group)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Trends in Casualties for Top Groups Over Time",
+    x = "Year",
+    y = "Total Casualties",
+    color = "Groups"
+  ) +
+  theme_minimal()
+
+### Top countries over time
+top_countries_trend <- suicide_attacks %>%
+  filter(target.country %in% top_countries$target.country) %>%
+  group_by(date.year, target.country) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE), .groups = "drop")
+
+ggplot(top_countries_trend, aes(x = date.year, y = total_casualties, color = target.country)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Trends in Casualties for Top Countries Over Time",
+    x = "Year",
+    y = "Total Casualties",
+    color = "Country"
+  ) +
+  theme_minimal()
+```
+
+### Risk Analysis
+
+```{r, echo=TRUE, results='hide', warning=FALSE}
+### Risk Analysis - Practical 3 ###
+###################################
+
+# Load the required libraries
+library(tseries)
+library(dplyr)
+library(tidyr)
+library(MASS)
+library(ggplot2)
+library(lubridate)
+library(extRemes)
+library(evd)
+library(ismev)
+
+# Read the data
+suicide_attacks <- read.csv("Practical 3/Data/suicide_attacks_cleaned.csv")
+attach(suicide_attacks)
+View(suicide_attacks)
+
+### Check for stationarity ###
+##############################
+
+### Create a ts with 0 when we have a date gap
+# Ensure the date column is in Date format
+suicide_attacks <- suicide_attacks %>%
+  mutate(date = as.Date(date))
+
+# Remove rows with NA dates
+suicide_attacks_clean <- suicide_attacks %>%
+  filter(!is.na(date))
+
+# Generate a complete sequence of dates and fill gaps with 0
+suicide_attacks_filled <- suicide_attacks_clean %>%
+  group_by(date) %>%
+  summarise(total_casualties = sum(total_casualties, na.rm = TRUE)) %>%
+  complete(date = seq(min(date), max(date), by = "day"), fill = list(total_casualties = 0))
+
+### Test if our ts is stationnary
+# Perform the ADF test on the filled data
+adf_test_result <- adf.test(suicide_attacks_filled$total_casualties)
+
+# Print the ADF test result
+print(adf_test_result) # --> p-value < 0.05 so we reject H0 and we can assume that this time serie is stationnary (H0: non stationnary)
+
+### Plot ts 
+ggplot(suicide_attacks_filled, aes(x = date, y = total_casualties)) +
+  geom_line() +
+  labs(
+    title = "Time Series Plot of Total Casualties",
+    x = "Date",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Plot ts without extreme values
+# Filter out values greater than 1000
+filtered_data <- suicide_attacks_filled %>%
+  filter(total_casualties <= 1000)
+
+# Plot the time series
+ggplot(filtered_data, aes(x = date, y = total_casualties)) +
+  geom_line(color = "blue") +
+  labs(
+    title = "Time Series of Total Casualties (Values ≤ 1000)",
+    x = "Date",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+### Check normality ###
+#######################
+
+### Visual check
+# Plot histogram with density curve
+ggplot(filtered_data, aes(x = total_casualties)) +
+  geom_histogram(aes(y = ..density..), bins = 10, fill = "skyblue", color = "black") +
+  geom_density(color = "red", size = 1) +
+  labs(
+    title = "Histogram of Total Casualties with Density Curve",
+    x = "Total Casualties",
+    y = "Density"
+  ) +
+  theme_minimal()
+
+# Q-Q plot
+qqnorm(suicide_attacks_filled$total_casualties)
+qqline(suicide_attacks_filled$total_casualties, col = "red")
+
+### Test check
+# Randomly sample 5000 rows if data exceeds 5000
+set.seed(123)  # For reproducibility
+sample_data <- sample(suicide_attacks_filled$total_casualties, size = 5000)
+
+# Perform Shapiro-Wilk test on the sample
+shapiro_test_result <- shapiro.test(sample_data)
+
+# Print the result
+print(shapiro_test_result) # --> p < 0.001 we reject H0 and our data is not not normal (H0: data follow normal distribution)
+
+### Compare normal vs t-distribution ###
+########################################
+
+# Compares how well the total casualties fit a t-distribution versus a normal distribution
+
+# fit the t-distribution
+t_fit <- fitdistr(total_casualties, "t")
+
+# Extract the degrees of freedom (df) from the fitted distribution
+df_value <- t_fit$estimate["df"]
+
+# Generate QQ-plot for t-distribution
+qqplot(
+  qt(ppoints(length(suicide_attacks_filled$total_casualties)), df = df_value),
+  suicide_attacks_filled$total_casualties,
+  main = "QQ-Plot of Total Casualties vs t-Distribution",
+  xlab = "Theoretical Quantiles (t-distribution)",
+  ylab = "Sample Quantiles"
+)
+# Add a 45-degree reference line
+qqline(suicide_attacks_filled$total_casualties, distribution = function(p) qt(p, df = df_value), col = "red")
+
+# Generate QQ-plot for normal distribution
+qqnorm(suicide_attacks_filled$total_casualties, main = "QQ-Plot of Total Casualties vs Normal Distribution")
+qqline(suicide_attacks_filled$total_casualties, col = "red")
+
+#### Block Maxima ####
+######################
+
+#remove failed attacks (no casualties)
+suicide_attacks_casualties <- suicide_attacks |>
+  filter(!is.na(total_casualties) & total_casualties > 0)
+
+# Plot histogram of daily casualties
+hist(suicide_attacks_casualties$total_casualties, main = "Histogram of Daily Casualties",
+     xlab = "Casualties", breaks = 500)
+
+# With bins to better show the extremes
+
+suicide_attacks_casualties_bins <- suicide_attacks_casualties %>%
+  mutate(casualty_bins = cut(total_casualties, 
+                             breaks = c(0, 10, 20, 30, 40, 50, 100, 500, 1000, Inf), 
+                             labels = c("1-10", "11-20", "21-30", "31-40", "41-50", 
+                                        "51-100", "101-500", "501-1000", ">1000")))
+
+table(suicide_attacks_casualties_bins$casualty_bins)
+barplot(table(suicide_attacks_casualties_bins$casualty_bins),
+        main = "Casualties Binned into Intervals",
+        xlab = "Casualty Intervals", ylab = "Frequency")
+
+# Extract yearly maxima
+yearly_max <- suicide_attacks_filled %>%
+  mutate(Year = year(date)) %>%
+  group_by(Year) %>%
+  summarise(Max_Casualties = max(total_casualties, na.rm = TRUE))
+
+# Plot histogram of yearly maxima
+hist(yearly_max$Max_Casualties, main = "Histogram of Yearly Maximum Casualties",
+     xlab = "Yearly Maximum Casualties", breaks = 50)
+
+# Fit a linear model for yearly maximum casualties
+lm_model <- lm(Max_Casualties ~ Year, data = yearly_max)
+
+# Generate a data frame for the next 10 years
+future_years <- data.frame(Year = seq(max(yearly_max$Year) + 1, max(yearly_max$Year) + 10))
+
+# Predict for the next 10 years with confidence intervals
+predictions <- predict(lm_model, newdata = future_years, interval = "confidence")
+
+# Combine actual data and predicted values for plotting
+combined_years <- c(yearly_max$Year, future_years$Year)
+combined_casualties <- c(yearly_max$Max_Casualties, predictions[,1])
+
+# Plot the actual data and predictions
+plot(yearly_max$Year, yearly_max$Max_Casualties, main = "Predictions for Next 10 Years",
+     xlab = "Year", ylab = "Maximum Daily Casualties", pch = 16)
+lines(combined_years, combined_casualties, col = "blue")
+lines(future_years$Year, predictions[,2], col = "red", lty = 2)
+lines(future_years$Year, predictions[,3], col = "red", lty = 2)
+legend("topleft", legend = c("Fitted Line", "Confidence Interval"),
+       col = c("blue", "red"), lty = c(1, 2))
+
+# Fit a GEV model with constant parameters
+gev_model_const <- fevd(yearly_max$Max_Casualties, type = "GEV")
+
+# Fit a GEV model with time-varying location parameter
+gev_model_time_var <- fevd(Max_Casualties ~ Year, data = yearly_max, location.fun = ~Year, type = "GEV")
+
+# Calculate AIC and BIC for model comparison
+n_params_const <- length(gev_model_const$results$par)
+loglik_const <- gev_model_const$results$value
+aic_const <- 2 * n_params_const + 2 * loglik_const
+bic_const <- log(nrow(yearly_max)) * n_params_const + 2 * loglik_const
+
+n_params_time_var <- length(gev_model_time_var$results$par)
+loglik_time_var <- gev_model_time_var$results$value
+aic_time_var <- 2 * n_params_time_var + 2 * loglik_time_var
+bic_time_var <- log(nrow(yearly_max)) * n_params_time_var + 2 * loglik_time_var
+
+cat("AIC (Constant Parameters):", aic_const, "\n")
+cat("AIC (Time-Varying Location):", aic_time_var, "\n")
+cat("BIC (Constant Parameters):", bic_const, "\n")
+cat("BIC (Time-Varying Location):", bic_time_var, "\n")
+
+# Plot the GEV model with constant parameters
+plot(gev_model_const, main = "GEV Model with Constant Parameters")
+
+# Diagnostic plots
+ismev_const <- gev.fit(yearly_max$Max_Casualties)
+gev.diag(ismev_const)
+
+# Define return period
+T <- 10
+
+# Extract parameters
+mu <- ismev_const$mle[1]
+sigma <- ismev_const$mle[2]
+xi <- ismev_const$mle[3]
+
+# Calculate 10-year return level
+z_T <- mu + (sigma / xi) * ((-log(1 - 1 / T))^(-xi) - 1)
+cat("10-Year Return Level:", z_T, "\n")
+
+# Plot return level
+plot(yearly_max$Year, yearly_max$Max_Casualties, main = "10-Year Return Level Prediction",
+     xlab = "Year", ylab = "Maximum Daily Casualties", pch = 16, col = "blue")
+abline(h = z_T, col = "red", lty = 2)
+legend("topright", legend = c("Yearly Maxima", "10-Year Return Level"),
+       col = c("blue", "red"), pch = c(16, NA), lty = c(NA, 2))
+
+# Calculate return levels for specified periods
+periods <- c(10, 20, 50, 85)
+return_levels <- sapply(periods, function(T) {
+  mu + (sigma / xi) * ((-log(1 - 1 / T))^(-xi) - 1)
+})
+names(return_levels) <- periods
+
+# Count historical exceedances
+counts_above <- sapply(return_levels, function(level) {
+  sum(yearly_max$Max_Casualties > level)
+})
+
+print(return_levels)
+print(counts_above)
+
+# Return period for a specific threshold
+threshold <- 100
+return_period_threshold <- 1 / (1 - pgev(threshold, loc = mu, scale = sigma, shape = xi))
+cat("Return period for", threshold, "casualties:", return_period_threshold, "years\n")
+
+# Probability of exceeding a threshold in the next year
+threshold_daily <- 150
+prob_exceed_daily <- 1 - pgev(threshold_daily, loc = mu, scale = sigma, shape = xi)
+prob_exceed_annual <- 1 - (1 - prob_exceed_daily)^365
+cat("Probability of exceeding", threshold_daily, "casualties in a day at least once in a year:", prob_exceed_annual, "\n")
+
+#### POT - Threshold minimum to define it is an extreme event ####`
+
+# We take the positive values
+data_extremes <- suicide_attacks_casualties$total_casualties
+
+# We trace the Mean Residual Life Plot
+thresholds <- seq(quantile(data_extremes, 0.85), quantile(data_extremes, 0.99), length.out = 50)
+mean_excess <- sapply(thresholds, function(u) {
+  excesses <- data_extremes[data_extremes > u] - u
+  mean(excesses, na.rm = TRUE)
+})
+
+mrl_plot <- data.frame(thresholds, mean_excess)
+ggplot(mrl_plot, aes(x = thresholds, y = mean_excess)) +
+  geom_line(color = "blue") +
+  geom_point(color = "red") +
+  labs(
+    title = "Mean Residual Life Plot",
+    x = "Threshold",
+    y = "Mean Excess"
+  ) +
+  theme_minimal()
+## A linearity area seems to be reached between 100-150, which is a candidate. If the slope is too weak, we could lose some info.
+## It is possible to modelize the events above the thresholds with GPD (Generalized Pareto Distribution).
+
+# Adjust a model GPD for different thresholds.
+thresholds_gpd <- seq(quantile(data_extremes, 0.9), quantile(data_extremes, 0.99), length.out = 10)
+gpd_params <- lapply(thresholds_gpd, function(thresh) {
+  excesses <- data_extremes[data_extremes > thresh] - thresh
+  if (length(excesses) > 10) {
+    gpd_fit <- fpot(excesses, threshold = 0)
+    return(gpd_fit$estimate)
+  } else {
+    return(NULL)
+  }
+})
+
+# Extract the parameters Shape et Scale for each threshold
+shape_params <- sapply(gpd_params, function(params) if (!is.null(params)) params["shape"] else NA)
+scale_params <- sapply(gpd_params, function(params) if (!is.null(params)) params["scale"] else NA)
+
+# Trace the stability of the parameters
+param_data <- data.frame(
+  Threshold = thresholds_gpd,
+  Shape = shape_params,
+  Scale = scale_params
+)
+
+ggplot(param_data, aes(x = Threshold)) +
+  geom_line(aes(y = Shape), color = "blue") +
+  geom_point(aes(y = Shape), color = "red") +
+  labs(
+    title = "Stability of Shape Parameter",
+    x = "Threshold",
+    y = "Shape Parameter"
+  ) +
+  theme_minimal()
+
+ggplot(param_data, aes(x = Threshold)) +
+  geom_line(aes(y = Scale), color = "green") +
+  geom_point(aes(y = Scale), color = "red") +
+  labs(
+    title = "Stability of Scale Parameter",
+    x = "Threshold",
+    y = "Scale Parameter"
+  ) +
+  theme_minimal()
+
+# Determine the optimal threshold
+## For the shape, the parameter seems to be stable between 100-150. Above 200, it becomes unstable.
+## This parameter determine the probability of exterme events. It is predictable in this area of 100-150 casualties.
+## For the scale, same between 100-150, above 200, it becomes unstable.
+## Mean Amplitude of excesses above the threshold. Between 100-150, possible to predict this amplitude. Above, not enough data to be precise.
+
+# Extract the excesses above the threshold
+threshold <- 120
+data_extremes <- suicide_attacks$total_casualties
+excesses <- data_extremes[data_extremes > threshold] - threshold  # Excès au-dessus du seuil
+
+# Aajust a GPD distribution to the excesses.
+gpd_fit <- fpot(excesses, threshold = 0)  # Ajustement du modèle GPD
+summary(gpd_fit)  # Résumé des paramètres ajustés
+
+# Extract the estimated parameters of GPD
+shape_param <- gpd_fit$estimate["shape"]  # ξ (shape parameter)
+scale_param <- gpd_fit$estimate["scale"]  # 𝜎 (scale parameter)
+
+# Estimating extremes quantiles
+# Probabilities for quantiles
+probabilities <- c(0.95, 0.99)
+
+# Function to calculate the quantiles based on GPD
+gpd_quantiles <- function(p, threshold, shape, scale, n_excess, total_n) {
+  lambda <- n_excess / total_n  # Proportion of events above the threshold
+  quantile <- threshold + (scale / shape) * (((1 - p) / lambda)^(-shape) - 1)
+  return(quantile)
+}
+
+# Calcul of quantiles for the specified probabilities
+n_excess <- length(excesses)  # Number of excesses above the threshold
+total_n <- length(data_extremes)  # Total number of events
+quantiles <- sapply(probabilities, function(p) {
+  gpd_quantiles(p, threshold, shape_param, scale_param, n_excess, total_n)
+})
+names(quantiles) <- paste0(probabilities * 100, "%")
+print(quantiles)
+
+# Analysis of the frequency & evaluation of total risk
+# Estimate the occurence of excesses
+frequency <- n_excess / total_n
+print(paste("Frequence of occurence of the excesses (threshold =", threshold, "):", frequency))
+
+# Combiner the frequence and the excesses to evaluate total risk
+expected_excess <- mean(excesses)  # Mean of the excesses
+total_risk <- frequency * (threshold + expected_excess)  # Total risk estimated
+print(paste("Risque total estimé :", total_risk))
+
+# Visualisation of excesses with the adjusted GPD
+ggplot(data.frame(excesses), aes(x = excesses)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.7) +
+  stat_function(fun = function(x) {
+    dgpd(x, loc = 0, scale = scale_param, shape = shape_param)
+  }, color = "red", size = 1) +
+  labs(
+    title = "Ajustement of the GPD to excesses",
+    x = "Excesses (above threshold)",
+    y = "Density"
+  ) +
+  theme_minimal()
+## Quantiles extraction : 95% : 226.83 (120+106.83), 99% : 366.34 as a probability of losses
+## Frequency of occurence for exterme events at 120 : 4.1%
+## Freq * (Threshold + Mean excess) = 10.49 additional casualties for events > 120.
+
+
+-----
+
+# Definition of a threshold for extreme values (95th percentile)
+threshold <- quantile(suicide_attacks_filled$total_casualties, 0.95, na.rm = TRUE)
+
+# Computation of the extremal index for the entire time series
+extremal_index <- extremalindex(suicide_attacks_filled$total_casualties, threshold = threshold)
+cat("Extremal Index:", extremal_index, "\n")
+cat("Do extremes occur in clusters? ", ifelse(extremal_index < 1, "Yes", "No"), "\n")
+
+## Extremal Index: 0.06736063 41 31 
+
+## Do extremes occur in clusters?  Yes No No 
+
+# Probability of extreme event tomorrow given today's is extreme
+prob_extreme_tomorrow <- extremal_index
+cat("Probability that if today's total casualties are extreme, tomorrow's will also be extreme:", prob_extreme_tomorrow, "\n")
+
+## Probability that if today's total casualties are extreme, tomorrow's will also be extreme: 0.06736063 41 31 
+
+# Declusterization of the data using the defined threshold
+declustered_data <- decluster(suicide_attacks_filled$total_casualties, threshold = threshold)
+
+# Plotting the original and declustered data
+ggplot() +
+  geom_line(data = suicide_attacks, aes(x = 1:nrow(suicide_attacks), y = total_casualties),
+            alpha = 0.5, color = "blue", linewidth = 1) +
+  geom_point(data = data.frame(Index = seq_along(declustered_data), Declustered = declustered_data), 
+             aes(x = Index, y = Declustered), color = "orange", size = 1.5) +
+  labs(
+    title = "Declustered Suicide Attacks Data",
+    x = "Index",
+    y = "Total Casualties"
+  ) +
+  theme_minimal()
+
+# Fittig a Generalized Pareto Distribution (GPD) to the raw and declustered data
+fit_gpd_raw <- fevd(suicide_attacks_filled$total_casualties, threshold = threshold, type = "GP", method = "MLE")
+fit_gpd_decl <- fevd(declustered_data, threshold = threshold, type = "GP", method = "MLE")
+
+## Summarizing the fitted models
+summary(fit_gpd_raw)
+
+## Negative Log-Likelihood Value:  4154.435 
+##  AIC = 8312.871 BIC = 8321.956 
+
+summary(fit_gpd_decl)
+
+# Negative Log-Likelihood Value:  2449.936 
+#  AIC = 4903.871 ; BIC = 4911.819 
+
+## We can clearly see that the model with the lowest AIC and BIC values is the one with declustered data
+## and among competing models is preferred.
+
+# Compute 10-year return level
+return_period <- 10
+return_level_raw <- return.level(fit_gpd_raw, return.period = return_period)
+return_level_decl <- return.level(fit_gpd_decl, return.period = return_period)
+
+cat("10-year Return Level (Raw Data):", return_level_raw, "\n")
+
+## 10-year Return Level (Raw Data): 1236.513 
+## An event with 1236 casualties or more is expected to occur, on average, once every 10 years
+
+cat("10-year Return Level (Declustered Data):", return_level_decl, "\n")
+
+## 10-year Return Level (Declustered Data): 1348.169 
+## An event with 1348 casualties or more is expected to occur, on average, once every 10 years
+```
+
